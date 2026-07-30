@@ -137,7 +137,7 @@ Full-bleed map. Text panels ride over it on the left. Camera choreographed again
 | 1 | **Cold open** | Black. One ember — the only orange that has existed on the page. *Pyra.* | Static |
 | 2 | **Ignition** | Terrain resolves in dark green, from above, at night. A spark. Fire spreads unchecked while a clock runs. Lands on a real number: how long a fire in this region typically burns before it is reported. | Top-down, slow push |
 | 3 | **The gap** | Why detection fails — satellite revisit intervals, sparse lookout towers, cell coverage stopping at the treeline. | Pull back to reveal unwatched land |
-| 4 | **The rod** | Three senses: infrared, acoustic, gas. The fusion argument — any single sensor lies (sun-warmed rock, wind, a barbecue); three agreeing do not. Hosts the explodable 3D rod and the fusion truth table. | Descend and tilt to ground level |
+| 4 | **The rod** | Three senses: infrared, acoustic, gas. The fusion argument — any single sensor lies (sun-warmed rock, wind, a barbecue); three agreeing do not. **The rod splits apart as you scroll**, component by component (§7), then the fusion truth table. | Descend and tilt to ground level; orbits the rod through the explode range |
 | 5 | **The network** | The alert has nowhere to go — no cell signal. It hops rod to rod over **LoRa** in cool teal against the orange, reaches a gateway, exits to the authority. *No tower. No subscription.* Includes the range-vs-spacing beat that justifies the radio choice. | Low, following the relay |
 | 6 | **The camper** | Coverage thins. A phone joins the nearest node over **Bluetooth**; a photo and a position enter the network and ride the LoRa backbone out. People become sensors. | Mid-tilt |
 | 7 | **The question** | A naive uniform grid drops over the terrain — evenly spaced, blind to the ridge, wasteful in the valley. *So where do you actually put them?* Hands off to the Lab. | Lift to near-top-down |
@@ -275,7 +275,15 @@ Rationale: with no hardware built, a photorealistic forest render lets a judge a
 
 **Built in code, not modelled** — procedural geometry from primitives in react-three-fiber: pole, solar panel, sensor housings, stake. Two reasons: no CAD or asset-pipeline dependency, and a stylized schematic object is *honest* in a way a photorealistic render of non-existent hardware is not.
 
-**Interaction:** drag to rotate; click a component to isolate it, with role and rough unit cost. Components: IR sensor · microphone · gas sensor · MCU · **LoRa radio (node-to-node backbone)** · **BLE radio (phone leg)** · battery · solar panel · housing · stake.
+### Interaction: scroll drives the explosion
+
+**Primary interaction is scroll, not click.** Scroll progress through beat 4 maps directly to an explode parameter `t ∈ [0,1]`: the rod starts as one sealed object and pulls apart along its axis as the visitor scrolls, each component separating in sequence with its label fading in as it clears the body. Scrolling back reassembles it. The camera orbits slightly across the same range so the object is never seen from a dead-on static angle.
+
+Components separate in a deliberate order — **outermost and most legible first**: housing → solar panel → IR sensor → microphone → gas sensor → LoRa radio → BLE radio → MCU → battery → stake. Each gets a scroll sub-range, so the sequence reads as disassembly rather than everything flying apart at once.
+
+**Secondary interactions, live once the sequence completes:** drag to rotate freely, and click any component to isolate it with its role and rough unit cost.
+
+Implementation notes: one `explodeT` value in the story store, driven by the beat's scroll progress and consumed by every component's transform. Component offsets are authored as unit vectors × a per-part distance, so the whole sequence is tunable from one table. `prefers-reduced-motion` snaps to three discrete states (assembled / half / exploded) instead of interpolating.
 
 ### The radio decision, and why the site should show its working
 
