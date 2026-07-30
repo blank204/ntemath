@@ -11,6 +11,7 @@ outputs/
 
 # Session tooling (local only)
 .remember/
+.superpowers/
 
 # Node / web build
 node_modules/
