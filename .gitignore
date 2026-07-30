@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Planner / simulation output and cached source layers
+outputs/
+*.tif
+*.tiff
+
+# Session tooling (local only)
+.remember/
+
+# Node / web build
+node_modules/
+dist/
+.vite/
+*.local
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
