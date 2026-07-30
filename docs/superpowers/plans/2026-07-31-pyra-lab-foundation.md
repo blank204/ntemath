@@ -2055,20 +2055,28 @@ def bake(name: str, max_px: int = 900) -> str:
     print(f"[{name}] {box.width_km:.0f} x {box.height_km:.0f} km "
           f"({box.area_km2:,.0f} km2)")
 
-    classes = forest.read_landcover(box, max_px=max_px)
+    # read_landcover returns a 3-tuple, not an array.
+    classes, _, missing = forest.read_landcover(box, max_px=max_px)
+    if classes is None:
+        raise RuntimeError(f"no WorldCover data for {name} (missing {missing})")
     mask = forest.burnable_mask(classes)
     print(f"  land cover {classes.shape}, "
           f"forest {100 * forest.forest_fraction(classes):.1f}%")
 
+    # NOTE the argument order: box comes FIRST in both of these.
     dets = hazard.fetch_firms()
-    activity = hazard.activity_field(dets, box, classes.shape)
+    local = hazard.detections_in(box, dets)
+    activity = hazard.activity_field(box, dets, classes.shape)
 
-    end = dt.date.today()
-    start = end - dt.timedelta(days=180)
-    fwi = hazard.peak_fwi_for_points(box, str(start), str(end))
-    fwi_norm = normalise_fwi(float(fwi))
-    print(f"  FIRMS in box: {len(hazard.detections_in(dets, box))}   "
-          f"FWI p90: {fwi:.1f}")
+    # Same window plan_region uses: end = today - 7d, start = end - 180d.
+    # peak_fwi_for_points takes a LIST OF (lon, lat) POINTS, not a box,
+    # and returns an array.
+    end = (dt.date.today() - dt.timedelta(days=7)).isoformat()
+    start = (dt.date.fromisoformat(end) - dt.timedelta(days=180)).isoformat()
+    lon0, lat0 = box.centre
+    fwi = float(hazard.peak_fwi_for_points([(lon0, lat0)], start, end)[0])
+    fwi_norm = normalise_fwi(fwi)
+    print(f"  FIRMS in box: {len(local)}   FWI p90: {fwi:.1f}")
 
     risk = risk_field(classes, activity, fwi_norm)
 
@@ -2090,7 +2098,7 @@ def bake(name: str, max_px: int = 900) -> str:
         "forestFraction": float(forest.forest_fraction(classes)),
         "fwiP90": float(fwi),
         "fwiNorm": float(fwi_norm),
-        "firmsCount": int(len(hazard.detections_in(dets, box))),
+        "firmsCount": int(len(local)),
         "classMix": {str(k): float(v)
                      for k, v in forest.class_mix(classes).items()},
         "generated": dt.datetime.now(dt.timezone.utc).isoformat(),
@@ -2126,25 +2134,38 @@ if __name__ == "__main__":
     raise SystemExit(main())
 ```
 
-- [ ] **Step 2: Verify the helper signatures before running**
+- [ ] **Step 2: Confirm the helper signatures**
 
-The script calls `forest.read_landcover`, `forest.burnable_mask`, `forest.forest_fraction`, `forest.class_mix`, `hazard.fetch_firms`, `hazard.activity_field`, `hazard.detections_in`, `hazard.peak_fwi_for_points`, `plan.risk_field` and `plan.normalise_fwi`.
+These are the verified signatures the script above is written against. Re-confirm before running — if any differ, fix the call site rather than working around it:
 
-Run this to confirm each exists with the expected parameters, and correct the call sites if any differ:
+```
+forest.read_landcover(box, max_px=1400)          -> (classes, _, missing)   3-TUPLE
+forest.burnable_mask(classes)                    -> np.ndarray
+forest.forest_fraction(classes)                  -> float
+forest.class_mix(classes)                        -> dict
+hazard.fetch_firms(span='7d', ...)               -> detections
+hazard.detections_in(box, dets, pad_deg=0.25)    BOX FIRST
+hazard.activity_field(box, dets, shape, ...)     BOX FIRST
+hazard.peak_fwi_for_points(points, start, end)   points = [(lon, lat)], returns ARRAY
+plan.risk_field(classes, activity, fwi_norm, w_weather=0.45, w_activity=0.35, w_base=0.20)
+plan.normalise_fwi(fwi_value, full_scale=80.0)   -> float
+```
+
+Verify with:
 
 ```bash
-cd "C:/Pyra NTE/.."
+cd "C:/Pyra NTE"
 python -c "
-import inspect
+import inspect, sys, os
+sys.path.insert(0, os.path.abspath('..'))
 from ntemath import forest, hazard, plan
 for m in (forest, hazard, plan):
     print('###', m.__name__)
     for n,f in inspect.getmembers(m, inspect.isfunction):
-        if not n.startswith('_'): print(' ', n, inspect.signature(f))
+        if not n.startswith('_') and f.__module__ == m.__name__:
+            print(' ', n + str(inspect.signature(f)))
 "
 ```
-
-Adjust `bake_region.py` to match the real signatures. Do not guess.
 
 - [ ] **Step 3: Bake Los Padres**
 
@@ -2416,7 +2437,16 @@ git commit -m "feat(web): load and validate baked region data"
   - `runPlacement(region: RegionData, p: PlaceParams): PlaceResult`
   - Worker protocol: post `{ type:'run', region, params }`, receive `{ type:'done', result }` or `{ type:'error', message }`.
 
-**Default spacing.** `plan.py` derives `r_min`/`r_max` when not given. Rather than duplicating that derivation, the UI passes explicit values and the pipeline requires them. Defaults used by the app: `rMinKm = detectKm * 0.9`, `rMaxKm = detectKm * 4`. These are honest, documented UI defaults — **not** a claim about what `plan.py` would choose.
+**Default spacing — use `plan.py`'s real saturation derivation.** `plan_region` lines 206–208 set, for the saturation regime (`budget is None`):
+
+```python
+r_min_km = detect_km * 0.55
+r_max_km = detect_km * 1.30
+```
+
+The pipeline takes `rMinKm`/`rMaxKm` explicitly, and the UI supplies exactly these. Do **not** substitute other values: the candidate pool must be denser than the answer because the minimiser can only delete, and discs of radius R tile the plane only at hexagonal spacing `R*sqrt(3)`. A sparser pool leaves gaps no pruning can close, and the coverage target becomes unreachable.
+
+At `detectKm = 2.0` this gives `rMinKm = 1.1`, `rMaxKm = 2.6` — the settings that produced the verified 928 candidates → 561 nodes at 95.0% coverage.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -2450,7 +2480,7 @@ function synthetic(nx = 40, ny = 30): RegionData {
 }
 
 const params = {
-  seed: 7, detectKm: 2, rMinKm: 1.8, rMaxKm: 8,
+  seed: 7, detectKm: 2, rMinKm: 1.1, rMaxKm: 2.6,
   target: 0.95, demandStride: 2, maxNodes: null,
 }
 
@@ -2690,11 +2720,16 @@ interface ModelState {
 export const DEFAULT_PARAMS: PlaceParams = {
   seed: 7,
   detectKm: 2.0,
-  rMinKm: 1.8,
-  rMaxKm: 8.0,
+  rMinKm: 1.1,        // detectKm * 0.55, per plan_region's saturation regime
+  rMaxKm: 2.6,        // detectKm * 1.30, same source
   target: 0.95,
   demandStride: 4,
   maxNodes: null,
+}
+
+/** Keep spacing tied to the detection radius exactly as plan_region does. */
+export function spacingFor(detectKm: number): { rMinKm: number; rMaxKm: number } {
+  return { rMinKm: detectKm * 0.55, rMaxKm: detectKm * 1.3 }
 }
 
 export const useModelStore = create<ModelState>((set) => ({
@@ -2889,7 +2924,7 @@ Create `web/src/ui/RunPanel.tsx`:
 
 ```tsx
 import { useRef } from 'react'
-import { useModelStore } from '../state/useModelStore'
+import { useModelStore, spacingFor } from '../state/useModelStore'
 import { PALETTE } from '../theme/palette'
 import type { PlaceResult } from '../lib/pipeline'
 
@@ -2952,7 +2987,13 @@ export function RunPanel() {
         Detection radius: {params.detectKm.toFixed(1)} km
         <input
           type="range" min={0.5} max={5} step={0.1} value={params.detectKm}
-          onChange={(e) => setParam('detectKm', Number(e.target.value))}
+          onChange={(e) => {
+            const v = Number(e.target.value)
+            const s = spacingFor(v)
+            setParam('detectKm', v)
+            setParam('rMinKm', s.rMinKm)
+            setParam('rMaxKm', s.rMaxKm)
+          }}
           style={{ width: '100%' }}
         />
       </label>
