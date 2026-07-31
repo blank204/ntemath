@@ -360,8 +360,72 @@ def cover_fixture() -> None:
     })
 
 
+def recombine_fixture() -> None:
+    """Small, hand-built cases pinning the recombination at several weights.
+
+    Deliberately not real data: the real-data case is the bit-for-bit test in
+    web/tests/risk.test.ts, which reads the committed rasters directly. These
+    cases exist to exercise weight settings the shipped raster cannot -- zero
+    activity weight, zero base weight, a nonzero fwiNorm, and a peak that lands
+    on a grassland pixel rather than a tree pixel.
+    """
+    import numpy as np
+
+    forest, plan = repo_modules("forest", "plan")
+
+    # Codes chosen to span the flammability table: tree, shrub, grass, crop,
+    # moss, water (flammability 0), built (flammability 0).
+    classes = np.array([
+        [10, 20, 30, 40],
+        [100, 80, 50, 10],
+        [30, 30, 10, 20],
+    ], dtype=np.uint8)
+    ny, nx = classes.shape
+    activity32 = np.ascontiguousarray(
+        (np.arange(ny * nx, dtype=np.float64).reshape(ny, nx) / (ny * nx - 1)),
+        dtype="<f4",
+    )
+    activity = activity32.astype(np.float64)
+
+    cases = []
+    for fwi_norm, w_weather, w_activity in [
+        (0.6103508388605902, 0.45, 0.35),   # the shipped default
+        (0.6103508388605902, 0.45, 0.00),   # activity off: a huge plateau
+        (0.0, 0.00, 1.00),                  # base off: pure activity
+        (1.0, 1.00, 0.00),                  # weather saturated
+        (0.25, 0.10, 0.60),                 # an off-centre pair
+    ]:
+        w_base = 1.0 - w_weather - w_activity
+        r = plan.risk_field(classes, activity, fwi_norm,
+                            w_weather=w_weather, w_activity=w_activity,
+                            w_base=w_base)
+        flam = forest.flammability_field(classes)
+        drive = (w_base + w_weather * float(np.clip(fwi_norm, 0, 1))
+                 + w_activity * activity)
+        peak = float((flam * drive).max())
+        cases.append({
+            "fwiNorm": fwi_norm,
+            "wWeather": w_weather, "wActivity": w_activity, "wBase": w_base,
+            "peak": peak,
+            # float32 exactly as the browser will hold it
+            "risk32": [float(x) for x in
+                       np.ascontiguousarray(r, dtype="<f4").ravel()],
+        })
+
+    _write("recombine.json", {
+        "nx": int(nx), "ny": int(ny),
+        "classes": [int(c) for c in classes.ravel()],
+        "activity32": [float(a) for a in activity32.ravel()],
+        "flammability": {str(int(k)): float(v)
+                         for k, v in forest.FLAMMABILITY.items()},
+        "burnableClasses": [int(c) for c in forest.BURNABLE],
+        "cases": cases,
+    })
+
+
 if __name__ == "__main__":
     refrng_fixture()
     frame_fixture()
     poisson_fixture()
     cover_fixture()
+    recombine_fixture()
