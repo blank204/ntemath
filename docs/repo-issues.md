@@ -98,6 +98,24 @@ or give `LocalFrame` an explicit corner-origin helper so the two conventions can
 
 ---
 
+### 1.6 `mesh.build_mesh`'s `clip_guard` false-positives on large domains — [measured]
+**Where:** `mesh.py`, the `clip_guard` check inside `build_mesh`
+
+Measured while timing the fire model over the Los Padres box (84.3 × 68.9 km, ~442,000 cells at `d_min = 90 m`). At that scale the numerical guard trips spuriously and then demands `shapely` to apply a correction that is not actually needed — **cell areas were verified to sum exactly to the domain area regardless.**
+
+Practical effect: running the fire model over a domain much larger than the ~16 × 17 km M7 study areas requires `shapely` to be installed purely to satisfy a check that has already produced a wrong answer. Without it, large-domain meshing fails outright.
+
+**Suggested fix:** scale the guard's tolerance with domain area (or with cell count) rather than using a fixed threshold, and only require `shapely` when the correction is genuinely needed. Worth fixing independently of anything the website needs — it silently caps the model's usable domain size.
+
+### 1.7 Undeclared geospatial dependencies — [measured]
+`pyproj`, `shapely` and `geopandas` are imported by `realdata.py`/`catalog.py` but are not declared anywhere (no `requirements.txt`, no `pyproject.toml`). `run.py --mode real` prints a helpful `pip install` hint, which is good, but nothing pins versions and nothing covers the `mesh.py` path above.
+
+Notes from working around them: `rasterio.warp.transform_bounds` substitutes for `pyproj` for bounds reprojection, and `shapely`/`geopandas` are only needed by the FRAP-perimeter code — a bounding-box-driven `Domain` does not touch them. So the hard dependency set is smaller than it appears, which is worth knowing before anyone installs the full stack on Windows.
+
+**Suggested fix:** add a `requirements.txt` (or `pyproject.toml`) with the real, pinned set, and split the optional geospatial extras from the core.
+
+---
+
 ## 2. Correctness and honesty
 
 ### 2.1 `risk_field` has no elevation and no camper-traffic term — [measured]
