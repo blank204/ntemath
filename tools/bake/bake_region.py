@@ -2,6 +2,7 @@
 
     python -m tools.bake.bake_region --region los-padres
     python -m tools.bake.bake_region --all
+    python -m tools.bake.bake_region --region los-padres --notes-only
 
 The heavy dependencies (GDAL via rasterio, the FIRMS and Open-Meteo feeds)
 live here and only here. The browser never sees them -- it receives a risk
@@ -31,6 +32,79 @@ forest, hazard, plan = repo_modules("forest", "hazard", "plan")
 REGIONS = plan.REGIONS
 normalise_fwi = plan.normalise_fwi
 risk_field = plan.risk_field
+
+#: ESA WorldCover product epoch, read off the tile URL forest.py builds
+#: (".../v200/2021/map/...") rather than restated, so it cannot drift.
+WORLDCOVER_EPOCH = "2021"
+#: Native WorldCover pixel size.
+WORLDCOVER_SOURCE_M = 10
+
+
+def source_notes(name: str, nx: int, ny: int, firms_pad_deg: float) -> dict:
+    """The provenance block published in meta.json.
+
+    Kept as a pure function of the region geometry so it can be regenerated
+    for an already-baked region without re-fetching WorldCover, FIRMS and
+    Open-Meteo -- a re-bake rewrites every pixel of risk.bin (the field is
+    renormalised to its own peak and the FWI window keys off today()), which
+    would silently invalidate every parity figure pinned against the
+    committed rasters.
+    """
+    box = REGIONS[name]
+    # read_landcover decimates the native 10 m grid to at most max_px on the
+    # long axis, so the shipped cell is a long way from 10 m and saying "10 m"
+    # alone overstates the resolution of what the browser actually receives.
+    cell_w_m = box.width_km * 1000.0 / max(nx, 1)
+    cell_h_m = box.height_km * 1000.0 / max(ny, 1)
+    return {
+        "landcover": (
+            f"ESA WorldCover v200 ({WORLDCOVER_EPOCH} epoch), "
+            f"{WORLDCOVER_SOURCE_M} m native, windowed via GDAL /vsicurl. "
+            f"forest.read_landcover decimates to at most {max(nx, ny)} px on "
+            f"the long axis, so the SHIPPED grid is {nx}x{ny} -- about "
+            f"{cell_w_m:.0f} m x {cell_h_m:.0f} m per cell, not 10 m. "
+            "Class labels are the native ones; the resolution is not."
+        ),
+        "activity": (
+            "NASA FIRMS VIIRS 375 m + MODIS 1 km; RECENCY SIGNAL ONLY - "
+            "the open feeds reach back days, not years. firmsCount is "
+            f"detections within firmsPadDeg ({firms_pad_deg:g} deg) of "
+            "the box, not strictly inside it. It is an UPPER BOUND on what "
+            "reaches the model, not the quantity the model integrates: "
+            "hazard.activity_field applies the same padded lookup but then "
+            "drops every detection below confidence 40, so the Gaussian "
+            "kernel integrates over a subset of firmsCount whose size is "
+            "not published here. "
+            "The resulting activity field is normalised to its own peak "
+            "within the box, so activity == 1.0 marks the most-active "
+            "pixel in this region, not an absolute detection density."
+        ),
+        "weather": (
+            "Canadian FWI from ERA5 via Open-Meteo, 180-day p90. "
+            "NOT an operational-scale FWI and NOT comparable to the classic "
+            "~40 'extreme' threshold: the FWI System expects noon "
+            "temperature, humidity and wind, and these values are built from "
+            "daily-maximum temperature and daily-minimum relative humidity, "
+            "which is common practice for gridded FWI but runs "
+            "systematically hotter than the noon-based operational scale. "
+            "Measured over 491 forested cells worldwide this basis gives a "
+            f"median of 17 and a 99th percentile of 113. fwiNorm is fwiP90 "
+            f"clipped to [0,1] against plan.FWI_FULL_SCALE = "
+            f"{plan.FWI_FULL_SCALE:g}, a local convention chosen because "
+            "normalising at 40 clamped 27% of cells to maximum risk. The "
+            "ranking these values give -- which is what siting actually "
+            "uses -- is preserved; the absolute level is not."
+        ),
+        "riskFormula": (
+            "flammability(landcover) * (0.20 + 0.45*fwiNorm + "
+            "0.35*activity), then divided by its own maximum so the "
+            "field's peak is exactly 1.0 within this region. Risk "
+            "values are therefore relative to this region only, NOT "
+            "comparable across regions -- a 1.0 here and a 1.0 "
+            "elsewhere do not mean the same absolute danger."
+        ),
+        "notModelled": ["elevation/slope", "camper traffic"],
+    }
 
 
 def bake(name: str, max_px: int = 900) -> str:
@@ -146,37 +220,17 @@ def bake(name: str, max_px: int = 900) -> str:
         "fwiP90": float(fwi),
         "fwiNorm": float(fwi_norm),
         # NOTE: padded, not strictly in-box -- see firmsPadDeg and
-        # sourceNotes.activity below. This is the count that actually feeds
-        # activity_field, since it does the same padded lookup internally.
+        # sourceNotes.activity below. activity_field does the same padded
+        # lookup, but then filters on conf >= min_conf (hazard.py:138)
+        # BEFORE the kernel runs, so this is an UPPER BOUND on what feeds
+        # the model, not the quantity the model integrates over.
         "firmsCount": int(n_local),
         "firmsPadDeg": firms_pad_deg,
         "classMix": {str(k): float(v)
                      for k, v in forest.class_mix(classes).items()},
         "seedFlatIndex": seed_flat_index,
         "generated": dt.datetime.now(dt.timezone.utc).isoformat(),
-        "sourceNotes": {
-            "landcover": "ESA WorldCover v200, 10 m, windowed via GDAL /vsicurl",
-            "activity": (
-                "NASA FIRMS VIIRS 375 m + MODIS 1 km; RECENCY SIGNAL ONLY - "
-                "the open feeds reach back days, not years. firmsCount is "
-                f"detections within firmsPadDeg ({firms_pad_deg:g} deg) of "
-                "the box, not strictly inside it -- that padded set is what "
-                "activity_field's Gaussian kernel actually integrates over. "
-                "The resulting activity field is normalised to its own peak "
-                "within the box, so activity == 1.0 marks the most-active "
-                "pixel in this region, not an absolute detection density."
-            ),
-            "weather": "Canadian FWI from ERA5 via Open-Meteo, 180-day p90",
-            "riskFormula": (
-                "flammability(landcover) * (0.20 + 0.45*fwiNorm + "
-                "0.35*activity), then divided by its own maximum so the "
-                "field's peak is exactly 1.0 within this region. Risk "
-                "values are therefore relative to this region only, NOT "
-                "comparable across regions -- a 1.0 here and a 1.0 "
-                "elsewhere do not mean the same absolute danger."
-            ),
-            "notModelled": ["elevation/slope", "camper traffic"],
-        },
+        "sourceNotes": source_notes(name, int(nx), int(ny), firms_pad_deg),
     }
     with open(os.path.join(out_dir, "meta.json"), "w", encoding="utf-8") as fh:
         json.dump(meta, fh, indent=1)
@@ -185,14 +239,41 @@ def bake(name: str, max_px: int = 900) -> str:
     return out_dir
 
 
+def refresh_notes(name: str) -> str:
+    """Rewrite an already-baked meta.json's sourceNotes in place.
+
+    Provenance text is a pure function of geometry (see source_notes), so a
+    correction to the wording must not require a full re-bake: re-baking
+    refetches live feeds and rewrites every pixel of risk.bin, which would
+    invalidate every placement figure pinned against the committed rasters.
+    """
+    path = os.path.join(OUT_ROOT, name, "meta.json")
+    with open(path, encoding="utf-8") as fh:
+        meta = json.load(fh)
+    meta["sourceNotes"] = source_notes(
+        name, int(meta["nx"]), int(meta["ny"]), float(meta["firmsPadDeg"])
+    )
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(meta, fh, indent=1)
+    print(f"refreshed sourceNotes in {path}")
+    return path
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--region", default="los-padres", choices=sorted(REGIONS))
     p.add_argument("--all", action="store_true", help="bake every region")
     p.add_argument("--max-px", dest="max_px", type=int, default=900)
+    p.add_argument(
+        "--notes-only", action="store_true",
+        help="rewrite sourceNotes in an existing meta.json without re-baking",
+    )
     a = p.parse_args(argv)
     for name in (sorted(REGIONS) if a.all else [a.region]):
-        bake(name, max_px=a.max_px)
+        if a.notes_only:
+            refresh_notes(name)
+        else:
+            bake(name, max_px=a.max_px)
     return 0
 
 
