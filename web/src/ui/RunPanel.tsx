@@ -3,13 +3,11 @@ import type { CSSProperties } from 'react'
 import { useModelStore } from '../state/useModelStore'
 import { PALETTE } from '../theme/palette'
 import type { RegionMeta } from '../lib/loadRegion'
+import { loadManifest } from '../lib/loadRegion'
 import { strideKm } from '../lib/pipeline'
+import { regionOptions } from '../lib/regions'
+import { budgetSentence, unbakedNotice, weightSentence } from './copy'
 import type { DoneMessage, ErrorMessage, RunMessage } from '../workers/place.worker'
-
-const REGIONS = [
-  'los-padres', 'amazon-rondonia', 'siberia-baikal', 'portugal-centro',
-  'victoria-alpine', 'congo-basin', 'sweden-norrland', 'greece-peloponnese',
-]
 
 const asText = (v: unknown): string | null =>
   typeof v === 'string' ? v : null
@@ -89,6 +87,63 @@ function Provenance({ meta, strideText }: { meta: RegionMeta; strideText: string
   )
 }
 
+/**
+ * The manual escape hatch for the blue-noise spacing, mirroring plan_region's
+ * `r_min_km` / `r_max_km` arguments: leave both empty and the budget mode
+ * derives them, fill both and they win. Half-filled is not a state the model
+ * has, so it is treated as "still derived" rather than guessed at.
+ *
+ * The derived values are shown as placeholders, so the reader can see what
+ * they are overriding before they override it.
+ */
+function SpacingOverride({ value, derived, onChange }: {
+  value: { rMinKm: number; rMaxKm: number } | null
+  derived: { rMinKm: number; rMaxKm: number } | null
+  onChange: (v: { rMinKm: number; rMaxKm: number } | null) => void
+}) {
+  const [min, setMin] = useState('')
+  const [max, setMax] = useState('')
+
+  const commit = (nextMin: string, nextMax: string) => {
+    setMin(nextMin)
+    setMax(nextMax)
+    const a = Number(nextMin)
+    const b = Number(nextMax)
+    const ok = nextMin.trim() !== '' && nextMax.trim() !== ''
+      && Number.isFinite(a) && Number.isFinite(b) && a > 0 && b >= a
+    onChange(ok ? { rMinKm: a, rMaxKm: b } : null)
+  }
+
+  const box: CSSProperties = {
+    width: '48%', marginTop: 4, accentColor: PALETTE.meshTeal,
+    background: PALETTE.canvas, color: PALETTE.ink,
+    border: `1px solid ${PALETTE.surfaceRaised}`, borderRadius: 4, padding: '4px 6px',
+  }
+
+  return (
+    <div style={{ marginTop: 12 }}>
+      <div>Spacing bounds (km)</div>
+      <div style={{ display: 'flex', gap: '4%' }}>
+        <input
+          type="number" step={0.1} min={0} value={min} style={box}
+          placeholder={derived ? `min ${derived.rMinKm.toFixed(2)}` : 'min — derived'}
+          onChange={(e) => commit(e.target.value, max)}
+        />
+        <input
+          type="number" step={0.1} min={0} value={max} style={box}
+          placeholder={derived ? `max ${derived.rMaxKm.toFixed(2)}` : 'max — derived'}
+          onChange={(e) => commit(min, e.target.value)}
+        />
+      </div>
+      <div style={{ color: PALETTE.chart.inkMuted, fontSize: 11, marginTop: 4, lineHeight: 1.5 }}>
+        {value
+          ? 'Overridden. The budget mode no longer sets the candidate spacing.'
+          : 'Derived from the budget mode, as plan_region derives it. Fill both to override.'}
+      </div>
+    </div>
+  )
+}
+
 export function RunPanel() {
   const workerRef = useRef<Worker | null>(null)
   // Correlation id for the worker protocol. Incremented once per run and
@@ -98,9 +153,23 @@ export function RunPanel() {
   // twice quickly before the first run finishes.
   const runIdRef = useRef(0)
   const {
-    regionName, region, params, result, running, error,
-    setRegionName, setParam, setRunning, setResult, setBenchmark, setError,
+    regionName, region, params, result, running, error, availableRegions,
+    setRegionName, setParam, setWeights, setRunning, setResult, setBenchmark,
+    setAvailableRegions, setError,
   } = useModelStore()
+
+  // Which regions actually have baked data. Read from the manifest the bake
+  // writes by scanning the data directory, so the picker cannot claim a region
+  // that was never baked.
+  useEffect(() => {
+    let cancelled = false
+    loadManifest()
+      .then((m) => { if (!cancelled) setAvailableRegions(m.baked) })
+      // A missing manifest is not fatal: every region simply shows as unbaked,
+      // which is the honest degradation rather than an empty picker.
+      .catch(() => { if (!cancelled) setAvailableRegions([]) })
+    return () => { cancelled = true }
+  }, [setAvailableRegions])
 
   useEffect(() => () => { workerRef.current?.terminate() }, [])
 
@@ -165,6 +234,8 @@ export function RunPanel() {
   }
 
   const stride = region ? strideKm(region.meta, params.demandStride) : null
+  const options = regionOptions(availableRegions)
+  const selected = options.find((o) => o.key === regionName) ?? null
 
   return (
     <div style={panel}>
@@ -179,15 +250,54 @@ export function RunPanel() {
           onChange={(e) => setRegionName(e.target.value)}
           style={control}
         >
-          {REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+          {/* All eight are listed. The seven without data are disabled and say
+              so — the model runs anywhere, the bake is what is missing, and
+              hiding them would understate the first while pretending the
+              second. */}
+          {options.map((o) => (
+            <option key={o.key} value={o.key} disabled={!o.baked}>
+              {o.label} — {o.country}{o.baked ? '' : ' — not baked'}
+            </option>
+          ))}
         </select>
       </label>
-      {regionName !== 'los-padres' && (
-        <p style={{ color: PALETTE.baselineGray, marginTop: 6, fontSize: 12 }}>
-          Only Los Padres is baked so far. Other regions will show an error
-          until their data is baked.
+      {selected && (
+        <p style={{ color: PALETTE.chart.inkMuted, marginTop: 6, fontSize: 11 }}>
+          {selected.regime}
+          {!selected.baked && ` · ${unbakedNotice(selected.label)}`}
         </p>
       )}
+
+      <label style={{ display: 'block', marginTop: 12 }}>
+        Fire-weather weight: {params.wWeather.toFixed(2)}
+        <input
+          type="range" min={0} max={1} step={0.01} value={params.wWeather}
+          onChange={(e) => setWeights({
+            wWeather: Number(e.target.value), wActivity: params.wActivity,
+          })}
+          style={control}
+        />
+      </label>
+
+      <label style={{ display: 'block', marginTop: 12 }}>
+        Observed-activity weight: {params.wActivity.toFixed(2)}
+        <input
+          // Capped at what the weather weight leaves, so the base weight the
+          // readout below shows can never go negative.
+          type="range" min={0} max={1} step={0.01} value={params.wActivity}
+          onChange={(e) => setWeights({
+            wWeather: params.wWeather, wActivity: Number(e.target.value),
+          })}
+          style={control}
+        />
+      </label>
+
+      <div style={{ marginTop: 8, color: PALETTE.chart.inkMuted, fontSize: 11, lineHeight: 1.5 }}>
+        {weightSentence({
+          wWeather: params.wWeather, wActivity: params.wActivity,
+          wBase: params.wBase, fwiNorm: region?.meta.fwiNorm ?? 0,
+        })}
+      </div>
 
       <label style={{ display: 'block', marginTop: 12 }}>
         Detection radius: {params.detectKm.toFixed(1)} km
@@ -200,14 +310,62 @@ export function RunPanel() {
         />
       </label>
 
-      <label style={{ display: 'block', marginTop: 12 }}>
+      <label style={{
+        display: 'block', marginTop: 12,
+        opacity: params.budgetMode === 'saturation' ? 1 : 0.45,
+      }}>
         Coverage target: {(params.target * 100).toFixed(0)}%
         <input
           type="range" min={0.5} max={0.99} step={0.01} value={params.target}
+          // Only saturation honours the target. The budgeted regimes set an
+          // unreachable 1.01 so the node cap is what binds, exactly as
+          // plan_region does — so the control is disabled rather than left
+          // looking live while doing nothing.
+          disabled={params.budgetMode !== 'saturation'}
           onChange={(e) => setParam('target', Number(e.target.value))}
           style={control}
         />
       </label>
+
+      <label style={{ display: 'block', marginTop: 12 }}>
+        Budget mode
+        <select
+          value={params.budgetMode}
+          onChange={(e) => setParam('budgetMode', e.target.value as typeof params.budgetMode)}
+          style={control}
+        >
+          <option value="saturation">saturation — reach the target</option>
+          <option value="auto">auto — the library default</option>
+          <option value="fixed">fixed — a node count I choose</option>
+        </select>
+      </label>
+
+      {params.budgetMode === 'fixed' && (
+        <label style={{ display: 'block', marginTop: 12 }}>
+          Fixed nodes: {params.fixedNodes}
+          <input
+            type="range" min={1} max={2000} step={1} value={params.fixedNodes}
+            onChange={(e) => setParam('fixedNodes', Math.round(Number(e.target.value)))}
+            style={control}
+          />
+        </label>
+      )}
+
+      <div style={{ marginTop: 8, color: PALETTE.chart.inkMuted, fontSize: 11, lineHeight: 1.5 }}>
+        {budgetSentence({
+          mode: params.budgetMode,
+          maxNodes: result?.budget.maxNodes ?? (
+            params.budgetMode === 'fixed' ? params.fixedNodes : null
+          ),
+          nodeCount: result?.nodeCount ?? 0,
+        })}
+      </div>
+
+      <SpacingOverride
+        value={params.spacingOverride}
+        derived={result ? { rMinKm: result.budget.rMinKm, rMaxKm: result.budget.rMaxKm } : null}
+        onChange={(v) => setParam('spacingOverride', v)}
+      />
 
       <button
         onClick={run}
@@ -225,34 +383,9 @@ export function RunPanel() {
         <p style={{ color: PALETTE.heat[2], marginTop: 12 }}>{error}</p>
       )}
 
-      {result && (
-        <div style={{ marginTop: 16, lineHeight: 1.7 }}>
-          <div>candidates <b>{result.candidateCount.toLocaleString()}</b></div>
-          <div>nodes <b>{result.nodeCount.toLocaleString()}</b></div>
-          <div>
-            cut <b>{result.reductionPct.toFixed(0)}%</b>
-            <span style={{ color: PALETTE.baselineGray }}>
-              {' '}of the blue-noise pool
-            </span>
-          </div>
-          <div style={{ color: PALETTE.baselineGray, fontSize: 11, lineHeight: 1.4 }}>
-            hardware saved by the greedy minimisation stage — not a comparison
-            against another method
-          </div>
-          <div style={{ marginTop: 8 }}>
-            risk-weighted coverage{' '}
-            <b>{(result.coveredFraction * 100).toFixed(1)}%</b>
-          </div>
-          <div style={{ color: PALETTE.baselineGray, fontSize: 11, lineHeight: 1.4 }}>
-            of burnable area
-            {stride !== null && `, ${stride.toFixed(2)} km scoring stride`}
-          </div>
-          <div style={{ marginTop: 4 }}>
-            area covered <b>{(result.areaFraction * 100).toFixed(1)}%</b>
-            <span style={{ color: PALETTE.baselineGray }}> (unweighted)</span>
-          </div>
-        </div>
-      )}
+      {/* The run's numbers live in BenchmarkPanel now — one place, beside the
+          comparison they belong to. Repeating them here would give the reader
+          two sources for the same figure. */}
 
       {region && (
         <Provenance
