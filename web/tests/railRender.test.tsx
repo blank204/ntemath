@@ -50,7 +50,8 @@ describe('BeatStage', () => {
     const html = BEATS.map((b) => stage(b.id, 0.3) + stage(b.id, 0.9)).join('')
     const known = new Set<string>([
       PALETTE.canvas, PALETTE.surface, PALETTE.surfaceRaised, PALETTE.ink,
-      PALETTE.brandOrange, PALETTE.meshTeal, PALETTE.baselineGray,
+      PALETTE.ember, PALETTE.signal, PALETTE.control,
+      PALETTE.fieldLit, PALETTE.inkMuted,
       ...PALETTE.heat, ...PALETTE.riskRamp,
       PALETTE.chart.surface, PALETTE.chart.grid, PALETTE.chart.axis,
       PALETTE.chart.inkMuted,
@@ -63,6 +64,16 @@ describe('BeatStage', () => {
 
 describe('Rail', () => {
   const html = renderToStaticMarkup(<Rail />)
+  /**
+   * The markup, with entities turned back into the characters the copy
+   * actually contains. `>40 ms` ships as `&gt;40 ms` and `Canada's` as
+   * `Canada&#x27;s`, so asserting on the raw string quietly checks the
+   * escaping rather than the copy.
+   */
+  const text = html
+    .replace(/&#x27;/g, "'").replace(/&quot;/g, '"')
+    .replace(/&gt;/g, '>').replace(/&lt;/g, '<')
+    .replace(/&amp;/g, '&')
 
   it('renders all seven headlines, in order', () => {
     let at = -1
@@ -83,6 +94,38 @@ describe('Rail', () => {
 
   it('uses real headings, so the page has an outline', () => {
     expect((html.match(/<h2/g) ?? []).length).toBe(BEATS.length)
+  })
+
+  it('stacks rather than splits when there is no room for two columns', () => {
+    // This is the server-rendered branch: `useIsSplit` starts false wherever
+    // there is no window, which is also the narrow case. It is asserted here
+    // because the browser check for it could not be run — see the note in
+    // docs/HANDOFF.md. It proves the narrow branch renders every beat and
+    // drops the split-only chrome; it does NOT prove the layout looks right
+    // at 390px, and nothing here should be read as claiming that.
+    expect(html).not.toContain('aria-label="Beats"')   // beat list is split-only
+    for (const b of BEATS) {
+      expect(text, `beat ${b.id}`).toContain(b.figure)
+      expect(text, `beat ${b.id}`).toContain(b.eyebrow)
+    }
+  })
+
+  it('keeps every figure paired with what it measures', () => {
+    // The figure and its unit are one thing. If a layout change ever renders
+    // the figure without its note, the page is showing a bare number at
+    // 148px, which is the one failure mode this rebuild could introduce.
+    for (const b of BEATS) {
+      expect(text, `beat ${b.id}`).toContain(b.figureNote)
+    }
+  })
+
+  it('keeps the sources on the page after cutting the bodies', () => {
+    // The bodies came down to 25 words and the research moved to end matter.
+    // If that section ever stops rendering, the site is making claims it no
+    // longer shows the working for.
+    for (const b of BEATS) {
+      if (b.source) expect(text, `beat ${b.id}`).toContain(b.source.slice(0, 40))
+    }
   })
 
   it('shows the first beat before any scroll has happened', () => {

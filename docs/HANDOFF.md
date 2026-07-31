@@ -138,6 +138,13 @@ most of what varies in the drive term.
 - **Los Padres figures are measurements at detectKm 2**, not defaults. They run
   through `DEFAULT_TEST_PARAMS`, which pins that radius and spreads every other
   shipped default so changing one still breaks them loudly.
+- **A hex outside `palette.ts` hid an entire palette change.** `index.html` had
+  an inline `#root { height: 100%; background: #060706 }` — opaque, page-height,
+  on the retired green world's near-black. It covered the new lit field
+  completely, so the storm-blue rebuild still rendered as the near-black void
+  that got the first visual pass rejected, with a fully green suite. The "never
+  a hex outside palette.ts" rule was only ever enforced over `src`, and
+  `index.html` and `favicon.svg` are not `src`. `palette.test.ts` now scans both.
 - **Use `git commit -F <file>`.** PowerShell here-strings mangle apostrophes.
 - **Verify repo-root Python signatures with `inspect.signature` first.**
 - **Repo-root Python is read-only.** Additive work only, in `tools/` or `web/`.

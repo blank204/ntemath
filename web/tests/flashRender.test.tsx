@@ -70,7 +70,7 @@ describe('FlashScene', () => {
     const html = [at(0), at(DELAY / 2), at(DELAY)].join('')
     const known = new Set<string>([
       PALETTE.canvas, PALETTE.surface, PALETTE.surfaceRaised, PALETTE.ink,
-      PALETTE.brandOrange, PALETTE.meshTeal, PALETTE.baselineGray,
+      PALETTE.ember, PALETTE.signal, PALETTE.control,
       ...PALETTE.heat, ...PALETTE.riskRamp,
       PALETTE.chart.surface, PALETTE.chart.grid, PALETTE.chart.axis,
       PALETTE.chart.inkMuted,

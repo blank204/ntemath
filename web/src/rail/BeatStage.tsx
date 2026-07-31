@@ -1,4 +1,5 @@
 import { PALETTE } from '../theme/palette'
+import { SIZE, TRACK, TYPE, WIDTH } from '../theme/type'
 import { FlashToBang } from '../ui/FlashToBang'
 import { TowerCanvas } from './tower/TowerCanvas'
 
@@ -20,10 +21,51 @@ export interface StageProps {
 const W = 520
 const H = 360
 
+/**
+ * Captions inside a stage. Same voice as every other label on the page.
+ *
+ * These were rendering at 12px in whatever the browser defaults to, which
+ * beside a rebuilt column set in Martian Mono read as unstyled SVG rather
+ * than as part of the instrument.
+ */
+const CAPTION = {
+  fontFamily: TYPE.mono,
+  fontSize: SIZE.micro,
+  fontStretch: WIDTH.labelNarrow,
+  letterSpacing: TRACK.label,
+} as const
+
 const frame = (children: React.ReactNode, label: string) => (
   <svg
     viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={label}
     style={{ display: 'block' }}
+  >
+    {children}
+  </svg>
+)
+
+/**
+ * Portrait, and close to the pinned pane's own aspect (roughly 3:4).
+ *
+ * A much taller box would be sliced so hard horizontally that the subject
+ * blows up past the frame edges; this crops the top and bottom, which is the
+ * intent, and leaves the ground contact inside the visible band.
+ */
+const TALL_W = 560
+const TALL_H = 820
+
+/**
+ * A stage that fills the pinned pane and is cropped by it.
+ *
+ * `slice` rather than the default `meet`: the point is that the subject runs
+ * off the top and bottom of the frame. A visual scaled to fit inside its box
+ * is a diagram in a letterbox, which is the composition this replaced.
+ */
+const tallFrame = (children: React.ReactNode, label: string) => (
+  <svg
+    viewBox={`0 0 ${TALL_W} ${TALL_H}`} role="img" aria-label={label}
+    preserveAspectRatio="xMidYMid slice"
+    style={{ display: 'block', width: '100%', height: '100%' }}
   >
     {children}
   </svg>
@@ -49,18 +91,61 @@ export function BeatStage({ beatId, t, reducedMotion = false }: StageProps) {
       // at t = 0.5 — half of it is already above the fold — and the cold
       // open has to be lit when the page loads.
       const hot = t < 0.6 && !reducedMotion
-      return frame(
+      const core = hot ? PALETTE.heat[4] : PALETTE.heat[2]
+      // The channel runs off the top of the frame and reaches ground low in
+      // it: the reader is under the storm, not looking at a diagram of one.
+      const CHANNEL = 'M 236 -40 L 274 150 L 246 214 L 292 352 L 262 424 '
+        + 'L 300 552 L 280 618 L 296 690'
+      // Two, short. Three long ones read as a second bolt rather than as
+      // branches off this one.
+      const BRANCHES = [
+        'M 274 150 L 224 244',
+        'M 292 352 L 344 452',
+      ]
+      const GROUND = 690
+      return tallFrame(
         <>
+          {/* The glow: the same channel, wider and faint, under the core.
+              Two tight passes rather than one broad one — a single 26px
+              stroke at low alpha read as a grey smudge beside the bolt
+              instead of as light coming off it. Filters would do this
+              properly and cost a composite on every scroll frame, which is
+              not affordable on the laptop GPU this has to run on. */}
           <path
-            d={`M 300 40 l -40 150 l 34 0 l -50 140`}
-            fill="none" stroke={hot ? PALETTE.heat[4] : PALETTE.heat[2]}
-            strokeWidth={hot ? 7 : 3} opacity={hot ? 1 : 0.8}
+            d={CHANNEL} fill="none" stroke={core}
+            strokeWidth={hot ? 16 : 9} opacity={hot ? 0.1 : 0.05}
+            strokeLinecap="round" strokeLinejoin="round"
+          />
+          <path
+            d={CHANNEL} fill="none" stroke={core}
+            strokeWidth={hot ? 9 : 5} opacity={hot ? 0.22 : 0.1}
+            strokeLinecap="round" strokeLinejoin="round"
+          />
+          {BRANCHES.map((d) => (
+            <path
+              key={d} d={d} fill="none" stroke={core}
+              strokeWidth={hot ? 2.5 : 1.5} opacity={hot ? 0.5 : 0.28}
+              strokeLinecap="round" strokeLinejoin="round"
+            />
+          ))}
+          <path
+            d={CHANNEL} fill="none" stroke={core}
+            strokeWidth={hot ? 6 : 3} opacity={hot ? 1 : 0.75}
+            strokeLinecap="round" strokeLinejoin="round"
+          />
+          {/* Where it lands. The ground is unwatched, which is the beat: the
+              contact is bright and there is nothing near it. */}
+          <ellipse
+            cx={296} cy={GROUND} rx={26 + 150 * t} ry={5 + 16 * t}
+            fill="none" stroke={PALETTE.chart.axis} strokeWidth={1}
+            opacity={0.7}
           />
           <ellipse
-            cx={244} cy={330} rx={90 + 200 * t} ry={12 + 20 * t}
+            cx={296} cy={GROUND} rx={12 + 60 * t} ry={3 + 7 * t}
             fill="none" stroke={PALETTE.chart.axis} strokeWidth={1}
+            opacity={0.45}
           />
-          <line x1={0} y1={330} x2={W} y2={330}
+          <line x1={0} y1={GROUND} x2={TALL_W} y2={GROUND}
             stroke={PALETTE.chart.axis} strokeWidth={1} />
         </>,
         'A single lightning strike reaching unwatched ground',
@@ -73,21 +158,21 @@ export function BeatStage({ beatId, t, reducedMotion = false }: StageProps) {
       const x = 40 + t * (W - 80)
       return frame(
         <>
-          <path d={gammaPath()} fill="none" stroke={PALETTE.meshTeal} strokeWidth={2} />
+          <path d={gammaPath()} fill="none" stroke={PALETTE.signal} strokeWidth={2} />
           <line x1={40} y1={H - 60} x2={W - 40} y2={H - 60}
             stroke={PALETTE.chart.axis} strokeWidth={1} />
           <line x1={x} y1={60} x2={x} y2={H - 60}
             stroke={PALETTE.heat[2]} strokeWidth={1} strokeDasharray="4 4" />
-          <text x={40} y={H - 36} fontSize={12} fill={PALETTE.chart.inkMuted}>
-            minutes
+          <text x={40} y={H - 36} {...CAPTION} fill={PALETTE.chart.inkMuted}>
+            MINUTES
           </text>
-          <text x={W - 40} y={H - 36} textAnchor="end" fontSize={12}
+          <text x={W - 40} y={H - 36} textAnchor="end" {...CAPTION}
             fill={PALETTE.chart.inkMuted}>
-            weeks
+            WEEKS
           </text>
-          <text x={W / 2} y={40} textAnchor="middle" fontSize={12}
+          <text x={W / 2} y={40} textAnchor="middle" {...CAPTION}
             fill={PALETTE.chart.inkMuted}>
-            strike → detectable fire
+            STRIKE → DETECTABLE FIRE
           </text>
         </>,
         'The holdover delay between a strike and a detectable fire, a long-tailed distribution',
@@ -109,13 +194,9 @@ export function BeatStage({ beatId, t, reducedMotion = false }: StageProps) {
               opacity={d.scored ? 1 : 0.5 + 0.5 * t}
             />
           ))}
-          <text x={W / 2} y={40} textAnchor="middle" fontSize={12}
+          <text x={W / 2} y={40} textAnchor="middle" {...CAPTION}
             fill={PALETTE.chart.inkMuted}>
-            every stroke, located
-          </text>
-          <text x={W / 2} y={H - 30} textAnchor="middle" fontSize={12}
-            fill={PALETTE.heat[2]}>
-            one of them is going to start a fire
+            EVERY STROKE, LOCATED
           </text>
         </>,
         'Many located strokes, only one of which will start a fire',
@@ -126,7 +207,16 @@ export function BeatStage({ beatId, t, reducedMotion = false }: StageProps) {
       // Three dimensions where there is a GPU, the flat schematic where
       // there is not — a locked-down machine or a blocklisted driver gets
       // the same information, drawn differently, rather than a hole.
-      return <TowerCanvas t={t} fallback={<TowerSchematic t={t} />} />
+      // The pinned hero, at frame height and cropped by the pane, rather than
+      // a render in a box. The parts list is off here — it collided with the
+      // headline — and the five subsystems are named in the beat's figureNote
+      // and its source note instead.
+      return (
+        <TowerCanvas
+          t={t} height={880} showParts={false}
+          fallback={<TowerSchematic t={t} />}
+        />
+      )
 
     case 'bang':
       return <FlashToBang />
@@ -140,21 +230,21 @@ export function BeatStage({ beatId, t, reducedMotion = false }: StageProps) {
       return frame(
         <>
           <circle cx={cx1} cy={H / 2} r={r} fill="none"
-            stroke={PALETTE.meshTeal} strokeWidth={2} opacity={0.9} />
+            stroke={PALETTE.signal} strokeWidth={2} opacity={0.9} />
           <circle cx={cx2} cy={H / 2} r={r} fill="none"
-            stroke={PALETTE.meshTeal} strokeWidth={2} opacity={0.35 + 0.55 * t} />
+            stroke={PALETTE.signal} strokeWidth={2} opacity={0.35 + 0.55 * t} />
           {/* The intersection, drawn as the two arcs that bound it. */}
           <path
             d={`M ${W / 2} ${H / 2 - Math.sqrt(r * r - (sep / 2) ** 2)}
                 A ${r} ${r} 0 0 1 ${W / 2} ${H / 2 + Math.sqrt(r * r - (sep / 2) ** 2)}
                 A ${r} ${r} 0 0 1 ${W / 2} ${H / 2 - Math.sqrt(r * r - (sep / 2) ** 2)}`}
-            fill={PALETTE.meshTeal} opacity={0.12 + 0.2 * t} stroke="none"
+            fill={PALETTE.signal} opacity={0.12 + 0.2 * t} stroke="none"
           />
           <circle cx={W / 2} cy={H / 2} r={4} fill={PALETTE.heat[2]} />
-          <text x={cx1} y={H / 2 + 4} textAnchor="middle" fontSize={12}
-            fill={PALETTE.chart.inkMuted}>tower</text>
-          <text x={cx2} y={H / 2 + 4} textAnchor="middle" fontSize={12}
-            fill={PALETTE.chart.inkMuted}>tower</text>
+          <text x={cx1} y={H / 2 + 4} textAnchor="middle" {...CAPTION}
+            fill={PALETTE.chart.inkMuted}>TOWER</text>
+          <text x={cx2} y={H / 2 + 4} textAnchor="middle" {...CAPTION}
+            fill={PALETTE.chart.inkMuted}>TOWER</text>
         </>,
         'Two overlapping tower ranges; the strike sits in the intersection',
       )
@@ -171,12 +261,8 @@ export function BeatStage({ beatId, t, reducedMotion = false }: StageProps) {
         <>
           {towers.map((p, i) => (
             <circle key={i} cx={p.x} cy={p.y} r={3.5}
-              fill={PALETTE.meshTeal} opacity={0.25 + 0.75 * t} />
+              fill={PALETTE.signal} opacity={0.25 + 0.75 * t} />
           ))}
-          <text x={W / 2} y={H - 24} textAnchor="middle" fontSize={12}
-            fill={PALETTE.chart.inkMuted}>
-            111 towers, and the argument about where they go
-          </text>
         </>,
         'A scattered network of towers over the demo region',
       )
@@ -208,11 +294,11 @@ export function TowerSchematic({ t }: { t: number }) {
               <g key={label}>
                 <rect
                   x={W / 2 - 46} y={y - 15} width={92} height={30} rx={4}
-                  fill={PALETTE.surfaceRaised} stroke={PALETTE.meshTeal}
+                  fill={PALETTE.surfaceRaised} stroke={PALETTE.signal}
                   strokeWidth={1}
                 />
                 <text
-                  x={W / 2 + 60} y={y + 4} fontSize={12}
+                  x={W / 2 + 60} y={y + 4} {...CAPTION}
                   fill={PALETTE.chart.inkMuted}
                 >
                   {label}

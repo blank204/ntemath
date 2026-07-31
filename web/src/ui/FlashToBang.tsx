@@ -58,7 +58,7 @@ export function FlashScene({ state, distanceKm, tempC, reducedMotion = false }: 
         <circle
           cx={VIEW.towerX} cy={VIEW.towerY} r={ringPx}
           fill="none"
-          stroke={state.rangeKm === null ? PALETTE.chart.axis : PALETTE.meshTeal}
+          stroke={state.rangeKm === null ? PALETTE.chart.axis : PALETTE.signal}
           strokeWidth={state.rangeKm === null ? 1 : 2}
           strokeDasharray={state.rangeKm === null ? '4 4' : undefined}
         />
@@ -82,7 +82,7 @@ export function FlashScene({ state, distanceKm, tempC, reducedMotion = false }: 
       </g>
 
       {/* The tower. */}
-      <g stroke={booming ? PALETTE.meshTeal : PALETTE.chart.inkMuted} fill="none">
+      <g stroke={booming ? PALETTE.signal : PALETTE.chart.inkMuted} fill="none">
         <path
           d={`M ${VIEW.towerX - 10} ${VIEW.towerY + 18} L ${VIEW.towerX} ${VIEW.towerY - 34}
               L ${VIEW.towerX + 10} ${VIEW.towerY + 18}`}
@@ -91,7 +91,7 @@ export function FlashScene({ state, distanceKm, tempC, reducedMotion = false }: 
         <circle
           cx={VIEW.towerX} cy={VIEW.towerY - 40} r={5}
           strokeWidth={2}
-          fill={booming ? PALETTE.meshTeal : 'none'}
+          fill={booming ? PALETTE.signal : 'none'}
         />
       </g>
 
@@ -100,7 +100,7 @@ export function FlashScene({ state, distanceKm, tempC, reducedMotion = false }: 
         x={VIEW.w - 12} y={30} textAnchor="end"
         fontFamily={TYPE.mono} fontWeight={WEIGHT.medium} fontSize={26}
         style={TABULAR}
-        fill={state.rangeKm === null ? PALETTE.ink : PALETTE.meshTeal}
+        fill={state.rangeKm === null ? PALETTE.ink : PALETTE.signal}
       >
         {state.elapsedS.toFixed(2)} s
       </text>
@@ -183,12 +183,12 @@ export function FlashToBang() {
     padding: 12, borderRadius: 8, fontSize: 12, lineHeight: 1.5,
   }
   const control: CSSProperties = {
-    width: '100%', marginTop: 4, accentColor: PALETTE.meshTeal,
+    width: '100%', marginTop: 4, accentColor: PALETTE.signal,
   }
 
   return (
     <div style={panel}>
-      <div style={{ ...LABEL, color: PALETTE.brandOrange }}>
+      <div style={{ ...LABEL, color: PALETTE.ember }}>
         FLASH TO BANG
       </div>
       <p style={{ color: PALETTE.chart.inkMuted, marginTop: 4 }}>

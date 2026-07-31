@@ -2,47 +2,68 @@
  * Minimal reset plus the palette, exposed as custom properties for the few
  * places that need CSS rather than inline styles (native form controls, the
  * MapLibre attribution chrome). The palette itself lives in
- * src/theme/palette.ts — these values must match it exactly.
- *
- * Previously this file was the untouched Vite scaffold: a white background,
- * a purple accent, a fixed 1126px #root and centred text, none of which is
- * in the palette and all of which fought the full-bleed map.
+ * src/theme/palette.ts and the type in src/theme/type.ts — these values must
+ * match those two files exactly.
  */
 
 /*
  * Self-hosted, not a CDN: a judge on a hotel connection should not need
  * fonts.googleapis.com to reach them, and the site is meant to survive being
- * opened offline. Only the weights actually used are imported.
+ * opened offline.
+ *
+ * `wdth.css` rather than `wght.css` — these are two-axis files carrying width
+ * as well as weight, and the width axis is half of why these faces were
+ * picked. One file per family covers every weight in the range, so there is
+ * no longer a per-weight import list to keep in sync with WEIGHT; the test
+ * checks the declared axis ranges instead.
  */
-@import '@fontsource/ibm-plex-sans-condensed/600.css';
-@import '@fontsource/ibm-plex-sans/400.css';
-@import '@fontsource/ibm-plex-sans/500.css';
-@import '@fontsource/ibm-plex-mono/400.css';
-@import '@fontsource/ibm-plex-mono/500.css';
+@import '@fontsource-variable/anybody/wdth.css';
+@import '@fontsource-variable/instrument-sans/wdth.css';
+@import '@fontsource-variable/martian-mono/wdth.css';
 
 :root {
-  --canvas: #060706;
-  --surface: #0e1f16;
-  --surface-raised: #1b3b29;
-  --ink: #f2efe6;
-  --brand-orange: #ff6b1a;
-  --mesh-teal: #4de1c1;
-  --baseline-gray: #8a9691;
+  --canvas: #070e24;
+  --field-lit: #16255c;
+  --surface: #111c3e;
+  --surface-raised: #1e2e5e;
+  --ink: #e8f0ff;
+  --ink-muted: #8ca0ce;
+  --ember: #ff6a2b;
+  --signal: #2696e4;
+  --control: #ab437b;
 
   /* Must match src/theme/type.ts exactly, the way the colours match palette.ts. */
-  --display: 'IBM Plex Sans Condensed', 'Segoe UI Semibold', system-ui, sans-serif;
-  --sans: 'IBM Plex Sans', system-ui, 'Segoe UI', sans-serif;
-  --mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
+  --display: 'Anybody Variable', 'Segoe UI Semibold', system-ui, sans-serif;
+  --sans: 'Instrument Sans Variable', system-ui, 'Segoe UI', sans-serif;
+  --mono: 'Martian Mono Variable', ui-monospace, Consolas, monospace;
 
   font: 15px/1.6 var(--sans);
   color: var(--ink);
-  background: var(--canvas);
   color-scheme: dark;
+
+  /*
+   * THE FIELD. On the root element, not on <body>: body's box is only as tall
+   * as its own content (664px here, while the page runs to eight screens), so
+   * a field painted there covers the first viewport and leaves flat colour
+   * under everything below it. The root always paints the whole canvas.
+   *
+   * Two lights, fixed to the viewport because the storm is overhead and stays
+   * there: the cloud lit from inside, up and to the left where the pinned
+   * tower stands, and a colder lift at the bottom right so the measurement
+   * column is not floating on a void. This is the whole difference between a
+   * storm and a dark background with line work on it.
+   */
+  background-color: var(--canvas);
+  background-image:
+    radial-gradient(135% 105% at 28% -12%, #1e3475 0%, #101c46 42%, transparent 72%),
+    radial-gradient(85% 65% at 104% 104%, #16255c 0%, transparent 68%);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  accent-color: var(--mesh-teal);
+  accent-color: var(--signal);
 }
 
 *,
@@ -59,21 +80,23 @@ body,
 }
 
 body {
-  /* The page is a scrolling document now — the Rail, then the Lab. It was
-     a fixed full-bleed map when this said `overflow: hidden`. */
-  background: var(--canvas);
-  min-height: 100%;
+  /* Transparent: the field is painted once, on the root. Anything opaque
+     between the root and the content hides it — which is exactly what an
+     opaque wrapper in App.tsx was doing. */
+  background: transparent;
 }
 
-/* Headlines take the condensed face everywhere, so no component has to
+/* Headlines take the display face everywhere, so no component has to
    remember to ask for it. */
 h1,
 h2,
 h3 {
   font-family: var(--display);
-  font-weight: 600;
-  letter-spacing: -0.015em;
-  line-height: 1.12;
+  font-weight: 500;
+  font-stretch: 135%;
+  letter-spacing: -0.02em;
+  line-height: 0.92;
+  margin: 0;
 }
 
 /* Numbers line up in columns and stop jittering when they recompute. */
@@ -86,8 +109,8 @@ h3 {
 /* The quality floor, not announced: keyboard focus stays visible, and
    motion is a preference the page honours rather than overrides. */
 :where(a, button, input, select):focus-visible {
-  outline: 2px solid var(--mesh-teal);
-  outline-offset: 2px;
+  outline: 2px solid var(--signal);
+  outline-offset: 3px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -104,15 +127,15 @@ input,
 select {
   font: inherit;
   color: inherit;
-  accent-color: var(--mesh-teal);
+  accent-color: var(--signal);
 }
 
 /* MapLibre paints its attribution on a white pill by default. */
 .maplibregl-ctrl-attrib {
-  background: rgb(6 7 6 / 70%) !important;
-  color: var(--baseline-gray) !important;
+  background: rgb(7 14 36 / 70%) !important;
+  color: var(--ink-muted) !important;
 }
 
 .maplibregl-ctrl-attrib a {
-  color: var(--mesh-teal) !important;
+  color: var(--signal) !important;
 }

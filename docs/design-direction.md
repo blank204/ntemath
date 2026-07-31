@@ -127,17 +127,54 @@ the sourcing do not disappear — they move to an end-matter section and the
 
 ## 5. Checklist for the rebuild
 
-- [ ] New palette module: storm-blue field, lightning white, ember accent, and
-      a per-beat world ramp. Re-run the CVD validator; rewrite the waiver doc.
-- [ ] New type tokens: display grotesque for figures, mono for labels. Keep the
-      "nothing outside type.ts names a family" test.
-- [ ] Rail becomes a pinned split: `RailStage` (left, pinned) and
-      `RailColumn` (right, scrolling).
-- [ ] Tower at full frame height, cropped top and bottom, scroll-driven
-      explode retained.
-- [ ] Beat copy cut to one headline + one figure + ≤25 words. Sources to end
-      matter. `beats.test.ts` gains a word-count ceiling per beat.
-- [ ] Full-bleed field behind everything; no letterboxing, no centred column.
-- [ ] Lab inherits the field; map goes full-bleed behind the panels.
-- [ ] Re-run the palette and type tests, then walk it in a browser at 1440 and
-      at 390 wide.
+Updated 2026-08-01, after the first pass at the rebuild.
+
+- [x] New palette module: storm-blue field, lightning white, ember accent.
+      Validator re-run — and the waiver is **retired, not reissued**: the new
+      pair `#2696E4` / `#AB437B` clears all five checks. `palette-validation.md`
+      is rewritten and records why the old waiver was never actually forced.
+      **The per-beat world ramp is not built** — see §6.
+- [x] New type tokens: Anybody (variable, wdth 50–150) for figures and the
+      pinned headline, Martian Mono (wdth 75–112.5) for every label and number,
+      Instrument Sans for the prose that is left. IBM Plex is gone from the
+      tokens, the CSS and the dependencies. The "nothing outside type.ts names a
+      family" test is kept, and a matching one for width was added, plus a check
+      that every weight and width sits inside the loaded variable axis range.
+- [x] Rail becomes a pinned split. Left pane is `position: sticky` with
+      `overflow: hidden` — that clip is what crops the headline at the seam and
+      the stage at the top and bottom of the frame.
+- [x] Tower at full frame height, cropped, scroll-driven explode retained. Its
+      parts list came off the pane (it sat on top of a 96px headline) and moved
+      into the beat's source note.
+- [x] Beat copy cut to one headline + one figure + ≤25 words. Sources moved to
+      an end-matter section, not deleted. `beats.test.ts` gained a per-beat word
+      ceiling **and** a whole-rail total, plus a check that every figure states
+      what it measures and that each measured figure appears in its own source.
+- [x] Full-bleed field behind everything. This was the hardest one to actually
+      land: the field is painted on the root element, and an opaque full-height
+      `#root` in `index.html` — still on the retired palette's near-black — was
+      covering it. The page looked exactly like the void that got rejected while
+      the whole suite was green.
+- [x] Lab inherits the field and the type; the map is full-bleed behind the
+      panels. **The panel copy is still long** — see §6.
+- [x] Palette and type tests re-run (425 pass, `tsc -b` and `npm run build`
+      clean), and walked in a browser at ~1170 and ~1460 CSS px.
+- [ ] **Not done: walked at 390 wide.** The browser window would not leave a
+      maximised 2048px in this session. The narrow branch is covered by a render
+      test and one clear defect was fixed blind (the 116% cropped headline is
+      pointless with no seam to cut it, so it drops to 92% when stacked), but
+      nobody has looked at it. This repo's own rule is that scroll and layout
+      bugs are only found by looking, so treat mobile as unverified.
+
+## 6. What this pass deliberately did not do
+
+- **The per-beat colour world ramp** (§3's "one risk worth taking"). The field
+  is one storm blue for all seven beats. The ramp is a good idea and it tracks
+  something true, but it wants to be judged against a working split rather than
+  designed at the same time as one.
+- **The Lab's panel copy.** It still reads as documentation, which is the same
+  problem the Rail had. It needs the same treatment: figures promoted, prose cut,
+  sourcing moved. It is the largest remaining piece of the rejection.
+- **A photographic layer.** `image-manifest.md` §1 has the NASA GIBS frame of
+  the actual demo box, public domain and free. Nothing from the manifest is on
+  the page yet, and every candidate in it still needs eyeballing before use.

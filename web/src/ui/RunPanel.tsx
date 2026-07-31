@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useModelStore } from '../state/useModelStore'
 import { PALETTE } from '../theme/palette'
-import { LABEL, SIZE, TYPE } from '../theme/type'
+import { LABEL, SIZE, TYPE, WIDTH } from '../theme/type'
 import type { RegionMeta } from '../lib/loadRegion'
 import { loadManifest } from '../lib/loadRegion'
 import { strideKm } from '../lib/pipeline'
@@ -18,10 +18,10 @@ const asText = (v: unknown): string | null =>
 function Note({ label, body }: { label: string; body: string }) {
   return (
     <div style={{ marginTop: 8 }}>
-      <div style={{ ...LABEL, color: PALETTE.meshTeal }}>
+      <div style={{ ...LABEL, color: PALETTE.signal }}>
         {label.toUpperCase()}
       </div>
-      <div style={{ color: PALETTE.baselineGray, fontSize: 11, lineHeight: 1.5 }}>
+      <div style={{ color: PALETTE.control, fontSize: 11, lineHeight: 1.5 }}>
         {body}
       </div>
     </div>
@@ -120,7 +120,7 @@ function SpacingOverride({ value, derived, onChange }: {
   }
 
   const box: CSSProperties = {
-    width: '48%', marginTop: 4, accentColor: PALETTE.meshTeal,
+    width: '48%', marginTop: 4, accentColor: PALETTE.signal,
     background: PALETTE.canvas, color: PALETTE.ink,
     border: `1px solid ${PALETTE.surfaceRaised}`, borderRadius: 4, padding: '4px 6px',
   }
@@ -240,7 +240,7 @@ export function RunPanel() {
   // accentColor keeps native form controls on-palette; without it the
   // browser paints them in its OS default blue, which is not in the palette.
   const control: CSSProperties = {
-    width: '100%', marginTop: 4, accentColor: PALETTE.meshTeal,
+    width: '100%', marginTop: 4, accentColor: PALETTE.signal,
   }
 
   const stride = region ? strideKm(region.meta, params.demandStride) : null
@@ -252,8 +252,12 @@ export function RunPanel() {
 
   return (
     <div style={panel}>
-      <div style={{ ...LABEL, fontSize: SIZE.subhead, letterSpacing: '0.16em',
-        fontFamily: TYPE.display, color: PALETTE.brandOrange }}>
+      {/* Ink, not ember. The wordmark used to be orange, and a wordmark is
+          chrome — spending the fire signal on it is what left the old page
+          unable to mean anything by orange when it actually meant fire. */}
+      <div style={{ ...LABEL, fontSize: SIZE.headline, letterSpacing: '0.06em',
+        fontFamily: TYPE.display, fontStretch: WIDTH.displayWide,
+        color: PALETTE.ink }}>
         PYRA
       </div>
 
@@ -284,7 +288,7 @@ export function RunPanel() {
       {/* Said out loud rather than left to the reader: a tower that watches
           for lightning is worth nothing where people start the fires. */}
       {selected && ignitionCaveat(selected) && (
-        <p style={{ color: PALETTE.brandOrange, marginTop: 6, fontSize: 11 }}>
+        <p style={{ color: PALETTE.ember, marginTop: 6, fontSize: 11 }}>
           {ignitionCaveat(selected)}
         </p>
       )}
@@ -404,7 +408,7 @@ export function RunPanel() {
         disabled={!region || running}
         style={{
           width: '100%', marginTop: 16, padding: '8px 0',
-          background: PALETTE.meshTeal, color: PALETTE.canvas,
+          background: PALETTE.signal, color: PALETTE.canvas,
           border: 0, borderRadius: 6, fontWeight: 700, cursor: 'pointer',
         }}
       >

@@ -72,7 +72,7 @@ export function nodesLayer(region: RegionData, nodes: Float64Array) {
     id: 'nodes',
     data,
     getPosition: (d: { position: [number, number] }) => d.position,
-    getFillColor: [...hexToRGB(PALETTE.meshTeal), 230],
+    getFillColor: [...hexToRGB(PALETTE.signal), 230],
     radiusUnits: 'meters',
     getRadius: 260,
     radiusMinPixels: 2.5,

@@ -12,9 +12,15 @@ describe('TOWER_PARTS', () => {
     expect(TOWER_PARTS.map((p) => p.id)).toEqual([
       'camera', 'mics', 'compute', 'solar', 'backhaul',
     ])
-    const body = BEATS.find((b) => b.id === 'tower')!.body.toLowerCase()
+    // Body AND figureNote: when the beat came down to 25 words the body kept
+    // the three subsystems that do the measuring and the figureNote took the
+    // full parts list. Between them the page still names all five, which is
+    // what this test is actually for — the model must not show a part the
+    // reader was never told about.
+    const beat = BEATS.find((b) => b.id === 'tower')!
+    const copy = `${beat.body} ${beat.figureNote}`.toLowerCase()
     for (const p of TOWER_PARTS) {
-      expect(body, `part ${p.id}`).toContain(p.keyword)
+      expect(copy, `part ${p.id}`).toContain(p.keyword)
     }
   })
 

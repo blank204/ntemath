@@ -68,12 +68,12 @@ describe('riskToImage vertical flip', () => {
       const o = (row * nx + col) * 4
       return [img.data[o], img.data[o + 1], img.data[o + 2]]
     }
-    // PALETTE.riskRamp: index 0 is '#2A2A22' (risk 0), index 4 is '#BFA06A'
+    // PALETTE.riskRamp: index 0 is '#644E38' (risk 0), index 4 is '#E7C3A2'
     // (risk 1). The hot row must land on ImageData's bottom row (row 1).
-    expect(px(1, 0)).toEqual([0xbf, 0xa0, 0x6a])
-    expect(px(1, 1)).toEqual([0xbf, 0xa0, 0x6a])
-    expect(px(0, 0)).toEqual([0x2a, 0x2a, 0x22])
-    expect(px(0, 1)).toEqual([0x2a, 0x2a, 0x22])
+    expect(px(1, 0)).toEqual([0xe7, 0xc3, 0xa2])
+    expect(px(1, 1)).toEqual([0xe7, 0xc3, 0xa2])
+    expect(px(0, 0)).toEqual([0x64, 0x4e, 0x38])
+    expect(px(0, 1)).toEqual([0x64, 0x4e, 0x38])
   })
 
   it('flips every row, not just the ends', () => {
@@ -85,7 +85,7 @@ describe('riskToImage vertical flip', () => {
     // brightest ramp value must sit at the TOP of the ImageData and the red
     // channel must fall monotonically downward. Without the flip it rises.
     const reds = [0, 1, 2, 3, 4].map((r) => img.data[r * 4])
-    expect(reds).toEqual([0xbf, 0x95, 0x6e, 0x4a, 0x2a])
+    expect(reds).toEqual([0xe7, 0xd0, 0xb0, 0x89, 0x64])
     for (let r = 1; r < reds.length; r++) {
       expect(reds[r]).toBeLessThan(reds[r - 1])
     }

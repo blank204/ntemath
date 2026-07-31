@@ -6,7 +6,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Pyra</title>
     <style>
-      html, body, #root { margin: 0; height: 100%; background: #060706; }
+      /*
+       * Anti-flash-of-white, painted before the CSS bundle arrives. This is
+       * the ONLY hex outside src/theme/palette.ts, it must equal
+       * PALETTE.canvas, and tests/palette.test.ts asserts that it does — it
+       * sat at the retired green world's near-black through a whole palette
+       * change and silently covered the field with it. That test scans this
+       * file for any hex the palette does not define, comments included, so
+       * do not write a retired colour down here to explain it.
+       *
+       * No `height: 100%` and no background on #root. Both were here and
+       * both were wrong: the height truncated the root's paint box to one
+       * viewport, and an opaque full-height #root hid the lit field
+       * completely, which is most of why the page read as a void.
+       */
+      html, body, #root { margin: 0; }
+      html { background: #070E24; }
     </style>
   </head>
   <body>

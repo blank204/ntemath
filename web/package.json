@@ -10,11 +10,15 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "validate:palette": "node scripts/validate_palette.js \"#4DE1C1,#8A9691\" --mode dark --surface \"#0E1F16\""
+    "validate:palette": "node scripts/validate_palette.js \"#2696E4,#AB437B\" --mode dark --surface \"#111C3E\"",
+    "validate:risk-ramp": "node scripts/validate_palette.js \"#644E38,#896745,#B08153,#D0A071,#E7C3A2\" --mode dark --surface \"#111C3E\" --ordinal"
   },
   "dependencies": {
     "@deck.gl/layers": "^9.3.7",
     "@deck.gl/mapbox": "^9.3.7",
+    "@fontsource-variable/anybody": "^5.3.0",
+    "@fontsource-variable/instrument-sans": "^5.3.0",
+    "@fontsource-variable/martian-mono": "^5.3.0",
     "@fontsource/ibm-plex-mono": "^5.3.0",
     "@fontsource/ibm-plex-sans": "^5.3.0",
     "@fontsource/ibm-plex-sans-condensed": "^5.3.0",

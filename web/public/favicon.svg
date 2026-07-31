@@ -1,14 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Pyra">
-  <!-- Palette: canvas #060706, meshTeal #4DE1C1, brandOrange #FF6B1A.
-       Teal is the sensor mesh; the single orange point is the fire it is
-       watching - the one thing orange is allowed to mean. -->
-  <rect width="32" height="32" rx="7" fill="#060706"/>
-  <path d="M8 23 L16 8 L24 23 Z" fill="none" stroke="#4DE1C1"
+  <!-- Palette: canvas #070E24, signal #2696E4, ember #FF6A2B. Every hex here
+       must exist in src/theme/palette.ts and tests/palette.test.ts checks it;
+       this file sat on the retired green-and-teal world for a whole palette
+       change because nothing was looking at it.
+
+       Signal is the tower network - three stations and the baselines between
+       them. The single ember point inside the triangle is the fire they have
+       triangulated, and it is the one thing ember is allowed to mean. -->
+  <rect width="32" height="32" rx="7" fill="#070E24"/>
+  <path d="M8 23 L16 8 L24 23 Z" fill="none" stroke="#2696E4"
         stroke-width="1.6" stroke-linejoin="round" opacity="0.85"/>
-  <g fill="#4DE1C1">
+  <g fill="#2696E4">
     <circle cx="8" cy="23" r="2.6"/>
     <circle cx="24" cy="23" r="2.6"/>
     <circle cx="16" cy="8" r="2.6"/>
   </g>
-  <circle cx="16" cy="18.5" r="2.2" fill="#FF6B1A"/>
+  <circle cx="16" cy="18.5" r="2.2" fill="#FF6A2B"/>
 </svg>

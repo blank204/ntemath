@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { PALETTE } from '../../theme/palette'
-import { SIZE } from '../../theme/type'
+import { LABEL } from '../../theme/type'
 import {
   TOWER_PARTS, MAST_HEIGHT_M, MAST_WIDTH_M, explodedY, latticeRungs,
 } from './towerModel'
@@ -18,11 +18,20 @@ import {
  * The geometry decisions all live in `towerModel.ts`, which is tested. This
  * file is the part a test runner cannot see: materials, lights, camera.
  */
-export function TowerCanvas({ t, height = 520, fallback = null }: {
+export function TowerCanvas({
+  t, height = 520, fallback = null, showParts = true,
+}: {
   t: number
   height?: number
   /** Shown instead when WebGL is unavailable. */
   fallback?: React.ReactNode
+  /**
+   * The parts list under the mast. Off when the tower is the pinned hero:
+   * there it sat on top of a 96px headline and neither could be read. The
+   * five subsystems are named in the beat's figureNote either way, and the
+   * per-part notes travel with the beat's source into end matter.
+   */
+  showParts?: boolean
 }) {
   const mount = useRef<HTMLDivElement | null>(null)
   const api = useRef<{ setT: (t: number) => void; dispose: () => void } | null>(null)
@@ -53,9 +62,9 @@ export function TowerCanvas({ t, height = 520, fallback = null }: {
       roughness: 0.42, metalness: 0.55,
     })
     const instrument = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(PALETTE.meshTeal),
+      color: new THREE.Color(PALETTE.signal),
       roughness: 0.35, metalness: 0.2,
-      emissive: new THREE.Color(PALETTE.meshTeal), emissiveIntensity: 0.18,
+      emissive: new THREE.Color(PALETTE.signal), emissiveIntensity: 0.18,
     })
     const lens = new THREE.MeshStandardMaterial({
       color: new THREE.Color(PALETTE.heat[2]),
@@ -188,7 +197,7 @@ export function TowerCanvas({ t, height = 520, fallback = null }: {
     const key = new THREE.DirectionalLight(new THREE.Color(PALETTE.ink), 2.4)
     key.position.set(14, 26, 12)
     scene.add(key)
-    const rim = new THREE.DirectionalLight(new THREE.Color(PALETTE.meshTeal), 0.9)
+    const rim = new THREE.DirectionalLight(new THREE.Color(PALETTE.signal), 0.9)
     rim.position.set(-16, 8, -10)
     scene.add(rim)
 
@@ -256,7 +265,11 @@ export function TowerCanvas({ t, height = 520, fallback = null }: {
   if (failed) return <>{fallback}</>
 
   return (
-    <div>
+    // The block is capped, not just the canvas. The parts list underneath was
+    // uncapped, so it set its own width from the longest note, overflowed the
+    // pinned pane and got clipped at both edges once the pane started
+    // centring its stage.
+    <div style={{ width: '100%', maxWidth: 460, margin: '0 auto' }}>
       <div
         ref={mount}
         role="img"
@@ -272,18 +285,21 @@ export function TowerCanvas({ t, height = 520, fallback = null }: {
           height, position: 'relative',
         }}
       />
-      <ul style={{
-        listStyle: 'none', margin: '10px 0 0', padding: 0,
-        display: 'grid', gap: 5, fontSize: SIZE.small,
+      {/* Set in the label voice like every other caption on the page. It was
+          running in the body face at default size, which read as raw markup
+          next to the rebuilt column. */}
+      {showParts && <ul style={{
+        ...LABEL, listStyle: 'none', margin: '14px 0 0', padding: 0,
+        display: 'grid', gap: 7, lineHeight: 1.7,
         color: PALETTE.chart.inkMuted,
       }}>
         {TOWER_PARTS.map((p) => (
           <li key={p.id} style={{ opacity: t > 0.15 ? 1 : 0.5, transition: 'opacity 200ms' }}>
-            <span style={{ color: PALETTE.meshTeal }}>{p.label}</span>
+            <span style={{ color: PALETTE.signal }}>{p.label}</span>
             {' — '}{p.note}
           </li>
         ))}
-      </ul>
+      </ul>}
     </div>
   )
 }

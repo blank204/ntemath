@@ -16,7 +16,11 @@ import { PALETTE } from './theme/palette'
  */
 export default function App() {
   return (
-    <div style={{ background: PALETTE.canvas, color: PALETTE.ink }}>
+    // Transparent, deliberately. The lit field is painted once on <body> in
+    // index.css and every section sits on it; an opaque wrapper here covered
+    // it and turned the page back into the near-black void that got the first
+    // visual pass rejected.
+    <div style={{ color: PALETTE.ink }}>
       <Rail />
       <section
         id={LAB_ANCHOR}
