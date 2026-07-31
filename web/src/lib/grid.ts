@@ -21,27 +21,29 @@ export function uniformGrid(
 
   // Find the (cols, rows) pair that avoids degenerate shapes (min(cols,rows) === 1)
   // while maintaining an aspect ratio close to the region's aspect.
-  // Allow a small bounded shortfall in exchange for better shape quality.
+  // Allow a percentage-based shortfall (5% for large n, more for small n).
   let bestCols = 1
   let bestRows = 1
-  let bestAspectDiff = Math.abs(1 - aspect)
+  let bestAspectDiff = Infinity
   let bestProduct = 0
 
-  // Search for the best non-degenerate factorization.
-  // Allow a small bounded shortfall (up to 3 nodes or n/20, whichever is smaller).
-  const minShortfall = Math.min(3, Math.max(1, Math.floor(n / 20)))
+  // Relative shortfall: 5% for large n, but at least 2 for tiny n.
+  const percentShortfall = Math.ceil(n * 0.05)
+  const minShortfall = Math.max(2, percentShortfall)
   const minProduct = Math.max(1, n - minShortfall)
 
+  // Search for the best non-degenerate factorization.
   for (let product = n; product >= minProduct; product--) {
     // Find all factorizations of product where both factors >= 2.
     for (let cols = 2; cols * cols <= product; cols++) {
       if (product % cols === 0) {
         const rows = product / cols
         if (Math.min(cols, rows) >= 2) {
-          // Non-degenerate candidate found.
+          // Non-degenerate candidate found. Score on aspect ratio quality.
           const gridAspect = cols / rows
           const aspectDiff = Math.abs(gridAspect - aspect)
-          if (aspectDiff < bestAspectDiff || bestProduct === 0) {
+          // Prefer closest aspect ratio; only break ties by product.
+          if (aspectDiff < bestAspectDiff) {
             bestCols = cols
             bestRows = rows
             bestProduct = product
