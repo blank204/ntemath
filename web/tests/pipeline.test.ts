@@ -8,6 +8,9 @@ import { loadRegion, type RegionData, type RegionMeta } from '../src/lib/loadReg
 import { burnableMaskOf, DEFAULT_WEIGHTS } from '../src/lib/risk'
 import { autoBudget } from '../src/lib/budget'
 import { DEFAULT_PARAMS } from '../src/state/useModelStore'
+// The real region loader lives in one place now — this file, benchmark.test.ts
+// and fairness.test.ts were each hand-rolling the same byte-slicing.
+import { loadLosPadres as losPadres } from './helpers/losPadres'
 
 // Hand-transcribed from `python -m tools.bake.verify_parity`. NOT generated
 // into this file: this test is worth having only because a Python run and a
@@ -153,25 +156,6 @@ function realFetch() {
     if (url.endsWith('activity.bin')) return { ok: true, arrayBuffer: async () => slice(actBuf) } as never
     return { ok: false, status: 404 } as never
   }) as unknown as typeof fetch
-}
-
-/**
- * The real region, assembled from the committed COMPONENTS. `b.buffer` alone
- * would be Node's pooled allocation, not this file's bytes — hence the slice.
- */
-function losPadres(): RegionData {
-  const meta = JSON.parse(readFileSync(join(dataDir, 'meta.json'), 'utf-8')) as RegionMeta
-  const cb = readFileSync(join(dataDir, 'classes.bin'))
-  const ab = readFileSync(join(dataDir, 'activity.bin'))
-  const classes = { nx: meta.nx, ny: meta.ny, data: new Uint8Array(slice(cb)) }
-  const [west, south, east, north] = meta.box
-  return {
-    meta,
-    classes,
-    activity: new Float32Array(slice(ab)),
-    mask: burnableMaskOf(classes, meta.burnableClasses),
-    bbox: { west, south, east, north },
-  }
 }
 
 describe('runPlacement on the real los-padres region', () => {

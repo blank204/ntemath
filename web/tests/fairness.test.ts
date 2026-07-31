@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { uniformGrid, capToCommonCount, gridShape, cellElongation } from '../src/lib/grid'
 import { coverageOf, demandPoints } from '../src/lib/cover'
+import { runBenchmark } from '../src/lib/benchmark'
+import { runPlacement, strideKm } from '../src/lib/pipeline'
+import { loadLosPadres, DEFAULT_TEST_PARAMS } from './helpers/losPadres'
 import type { Field } from '../src/lib/types'
 
 const nx = 40, ny = 30
@@ -189,36 +192,43 @@ describe('capToCommonCount', () => {
 })
 
 describe('benchmark fairness', () => {
-  it('scores two independently-generated arms with equal node counts after capping', () => {
-    const d = demandPoints(risk, null, W, H, 2)
+  it('scores both real benchmark arms on the same realised count at every budget', () => {
+    // This case used to build its "model" arm from a second uniformGrid call,
+    // so the only thing it could ever prove was that capToCommonCount
+    // truncates two arrays — a fact about array lengths, not about the
+    // benchmark. Plan 1's ledger records that circularity being found twice.
+    // Drive the real runBenchmark instead, on a genuine risk-driven arm.
+    const region = loadLosPadres()
+    const placed = runPlacement(region, DEFAULT_TEST_PARAMS)
+    const result = runBenchmark({
+      risk: placed.risk, mask: region.mask,
+      widthKm: region.meta.widthKm, heightKm: region.meta.heightKm,
+      nodes: placed.nodes, detectKm: DEFAULT_TEST_PARAMS.detectKm,
+      demandStride: DEFAULT_TEST_PARAMS.demandStride,
+      strideKm: strideKm(region.meta, DEFAULT_TEST_PARAMS.demandStride),
+    })
 
-    // Generate two independent arms with DIFFERENT natural lengths.
-    const gridArm = uniformGrid(W, H, 50, null)
-    const modelArm = uniformGrid(W, H, 30, null)
+    expect(result.points.length).toBeGreaterThan(5)
 
-    // Before capping, arms have different counts.
-    const gridCount = gridArm.length / 2
-    const modelCount = modelArm.length / 2
-    expect(gridCount).not.toBe(modelCount)
-
-    // Cap to common count — this is the fairness enforcement.
-    const [grid, model] = capToCommonCount(gridArm, modelArm)
-
-    // After capping: identical counts and identical demand set.
-    const cappedCount = grid.length / 2
-    expect(cappedCount).toBe(model.length / 2)
-    expect(cappedCount).toBeLessThanOrEqual(Math.min(gridCount, modelCount))
-
-    // Score both on the same demand points.
-    const a = coverageOf(grid, d.xy, d.w, 3)
-    const b = coverageOf(model, d.xy, d.w, 3)
-
-    // Both scores should be valid (in [0, 1]).
-    for (const v of [...a, ...b]) {
-      expect(v).toBeGreaterThanOrEqual(0)
-      expect(v).toBeLessThanOrEqual(1)
+    // At least one budget must have needed the cap, or the guarantee is
+    // vacuous on this data and the test has stopped testing anything.
+    let capped = 0
+    for (const p of result.points) {
+      const gridArm = uniformGrid(
+        region.meta.widthKm, region.meta.heightKm, p.requested, region.mask,
+      )
+      const rawGrid = gridArm.length / 2
+      const rawPyra = Math.min(p.requested, placed.nodeCount)
+      if (rawGrid !== rawPyra) capped++
+      // Whatever the raw counts were, both arms were scored on the same one.
+      expect(p.scored).toBe(Math.min(rawGrid, rawPyra))
+      expect(p.pyra).toBeGreaterThanOrEqual(0)
+      expect(p.pyra).toBeLessThanOrEqual(1)
+      expect(p.uniform).toBeGreaterThanOrEqual(0)
+      expect(p.uniform).toBeLessThanOrEqual(1)
     }
-  })
+    expect(capped).toBeGreaterThan(0)
+  }, 300000)
 
   it('capping changes the grid arm it is applied to', () => {
     // This test used to end with `expect(a.length).toBe(b.length)`, comparing
