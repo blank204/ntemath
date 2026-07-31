@@ -3,21 +3,35 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 
 const ROOT = join(__dirname, '..', 'public', 'data')
-const DIR = join(ROOT, 'los-padres')
 
 /**
  * Node's readFileSync returns a Buffer that may be a view into a pooled
  * allocation, so `buf.buffer` alone would read the wrong bytes. Slice by the
  * view's own offset and length — the trap Plan 1's Task 11 handled.
  */
-function bytes(name: string): Uint8Array {
-  const b = readFileSync(join(DIR, name))
+function bytesIn(dir: string, name: string): Uint8Array {
+  const b = readFileSync(join(dir, name))
   return new Uint8Array(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength))
 }
 
-const meta = JSON.parse(readFileSync(join(DIR, 'meta.json'), 'utf-8'))
+const manifest = JSON.parse(readFileSync(join(ROOT, 'manifest.json'), 'utf-8'))
 
-describe('baked component artifacts', () => {
+// Every baked region, not just the first one. These checks are about what the
+// bake guarantees — grid sizes, a mask derived from the classes, a layer
+// normalised to its own peak — and a guarantee that holds for one region and
+// is never checked on the next is a guarantee only by habit.
+describe.each(manifest.baked as string[])('baked artifacts: %s', (region) => {
+  const DIR = join(ROOT, region)
+  const bytes = (name: string) => bytesIn(DIR, name)
+  const meta = JSON.parse(readFileSync(join(DIR, 'meta.json'), 'utf-8'))
+
+  it('declares which layer drives its risk field, and ships that file', () => {
+    expect(['lightning', 'fire-activity']).toContain(meta.layer)
+    expect(meta.layerFile).toBe(
+      meta.layer === 'lightning' ? 'lightning.bin' : 'activity.bin')
+    expect(bytes(meta.layerFile).length).toBe(meta.nx * meta.ny * 4)
+  })
+
   it('publishes the model constants instead of leaving them to be guessed', () => {
     expect(meta.flammability['10']).toBe(1)
     expect(meta.flammability['30']).toBe(0.75)
@@ -35,10 +49,10 @@ describe('baked component artifacts', () => {
     expect(meta.areaKm2).toBeGreaterThan(1000)
   })
 
-  it('sizes classes.bin and activity.bin to the declared grid', () => {
+  it('sizes every raster to the declared grid', () => {
     const n = meta.nx * meta.ny
     expect(bytes('classes.bin').length).toBe(n)
-    expect(bytes('activity.bin').length).toBe(n * 4)
+    expect(bytes(meta.layerFile).length).toBe(n * 4)
     expect(bytes('risk.bin').length).toBe(n * 4)
     expect(bytes('mask.bin').length).toBe(n)
   })
@@ -64,8 +78,8 @@ describe('baked component artifacts', () => {
     expect({ mismatches, firstBad }).toEqual({ mismatches: 0, firstBad: -1 })
   })
 
-  it('keeps the activity field finite, non-negative, and peaked at 1', () => {
-    const a = bytes('activity.bin')
+  it('keeps the layer field finite, non-negative, and peaked at 1', () => {
+    const a = bytes(meta.layerFile)
     const f = new Float32Array(a.buffer, a.byteOffset, a.byteLength / 4)
     let max = -Infinity
     let bad = 0
@@ -74,8 +88,29 @@ describe('baked component artifacts', () => {
       if (f[i] > max) max = f[i]
     }
     expect(bad).toBe(0)
-    // hazard.activity_field normalises to its own peak inside the box.
+    // Both layers normalise to their own peak inside the box — which is
+    // what lets the risk recombination stay byte-identical arithmetic
+    // across the pivot, and what makes 1.0 mean "the most-struck (or
+    // most-detected) ground in THIS region" and nothing more.
     expect(max).toBeCloseTo(1, 6)
+  })
+
+  it('publishes the gradient gate whenever lightning drives the risk', () => {
+    if (meta.layer !== 'lightning') {
+      expect(meta.lightningGate).toBeUndefined()
+      return
+    }
+    const g = meta.lightningGate
+    // The gate is a measurement on the raw climatology, so it has to carry
+    // the sample it rests on. A verdict with no counts behind it is a claim.
+    expect(g.cells).toBeGreaterThan(0)
+    expect(g.flashes).toBeGreaterThan(0)
+    expect(g.nativeDeg).toBe(0.5)
+    expect(['gradient', 'structured', 'flat']).toContain(g.verdict)
+    // The chi-square compares counts directly, which is only fair if every
+    // cell was watched for about as long.
+    expect(g.viewtimeSpreadPct).toBeLessThan(5)
+    if (g.verdict !== 'flat') expect(g.pUniform).toBeLessThan(0.01)
   })
 
   it('reports a seed index that is in range and on a burnable pixel', () => {

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import {
-  DEFAULT_PARAMS, WEIGHT_SUM_MAX, clampWeights, useModelStore,
+  DEFAULT_PARAMS, DEFAULT_REGION, WEIGHT_SUM_MAX, clampWeights, useModelStore,
 } from '../src/state/useModelStore'
 import { DEFAULT_WEIGHTS } from '../src/lib/risk'
 import type { BenchmarkResult } from '../src/lib/benchmark'
@@ -18,7 +18,7 @@ const EMPTY_CURVE: BenchmarkResult = {
 
 beforeEach(() => {
   useModelStore.setState({
-    regionName: 'los-padres', region: null, availableRegions: [],
+    regionName: DEFAULT_REGION, region: null, availableRegions: [],
     params: DEFAULT_PARAMS, result: null, benchmark: null,
     running: false, error: null,
   })
@@ -31,8 +31,24 @@ describe('store defaults', () => {
     expect(DEFAULT_PARAMS.wActivity).toBe(0.35)
     expect(DEFAULT_PARAMS.demandStride).toBe(4)
     expect(DEFAULT_PARAMS.spacingOverride).toBeNull()
-    expect(DEFAULT_PARAMS.detectKm).toBe(2.0)
     expect(DEFAULT_PARAMS.target).toBe(0.95)
+  })
+
+  it('detects at tower range, not at rod range', () => {
+    // 2 km was a smoke sensor on a post. A tower sees a flash to the horizon
+    // and hears the thunder that confirms it out to roughly 15–20 km, which
+    // is the range the acoustic layer can actually stand behind. It also
+    // drops tower counts into the tens — the regime where Benchmark A
+    // measured risk-driven siting beating a uniform grid by its widest
+    // margin, rather than the hundreds where the grid wins.
+    expect(DEFAULT_PARAMS.detectKm).toBe(15)
+  })
+
+  it('opens on the region whose data is driven by lightning', () => {
+    // Asserted on the constant rather than on the live store, because
+    // beforeEach resets the store FROM that constant — reading it back would
+    // only prove the reset worked.
+    expect(DEFAULT_REGION).toBe('james-bay')
   })
 
   it('takes w_base from the model, never from the slider arithmetic', () => {
@@ -128,6 +144,6 @@ describe('store actions', () => {
     const p = useModelStore.getState().params
     expect(p.detectKm).toBe(3.5)
     expect(p.target).toBe(DEFAULT_PARAMS.target)
-    expect(DEFAULT_PARAMS.detectKm).toBe(2.0)   // the default object is not mutated
+    expect(DEFAULT_PARAMS.detectKm).toBe(15)   // the default object is not mutated
   })
 })

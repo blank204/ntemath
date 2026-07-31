@@ -28,11 +28,11 @@ export function ChartTable({ rows }: {
         captionSide: 'top', textAlign: 'left', fontSize: 11,
         color: PALETTE.chart.inkMuted, paddingBottom: 2,
       }}>
-        Risk-weighted coverage by realised node count
+        Risk-weighted coverage by realised tower count
       </caption>
       <thead>
         <tr style={{ color: PALETTE.chart.inkMuted, textAlign: 'right' }}>
-          <th scope="col" style={cell}>nodes</th>
+          <th scope="col" style={cell}>towers</th>
           <th scope="col" style={cell}>risk-driven</th>
           <th scope="col" style={cell}>uniform grid</th>
           <th scope="col" style={cell}>Δ</th>
@@ -92,7 +92,7 @@ export function CoverageBudgetChart({ result, width = 488, height = 300 }: {
         width="100%" viewBox={`0 0 ${m.width} ${m.height}`}
         role="img"
         aria-label={
-          'Risk-weighted coverage against node budget, for risk-driven ' +
+          'Risk-weighted coverage against tower budget, for risk-driven ' +
           `placement and a uniform grid, over ${result.demandCount.toLocaleString()} ` +
           `demand points at a ${result.strideKm.toFixed(2)} km stride.`
         }
@@ -125,7 +125,7 @@ export function CoverageBudgetChart({ result, width = 488, height = 300 }: {
         <text
           x={(m.pad.left + m.width - m.pad.right) / 2} y={m.height - 6}
           textAnchor="middle" fill={PALETTE.chart.inkMuted} fontSize={10}
-        >node budget requested (log scale)</text>
+        >tower budget requested (log scale)</text>
         <text
           x={12} y={(m.pad.top + m.height - m.pad.bottom) / 2}
           textAnchor="middle" fill={PALETTE.chart.inkMuted} fontSize={10}

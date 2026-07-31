@@ -29,13 +29,13 @@ export function BenchmarkPanel() {
       maxHeight: 'calc(100vh - 32px)', overflowY: 'auto',
     }}>
       <HeroFigure
-        label="Head to head, at the same realised node count"
+        label="Head to head, at the same realised tower count"
         value={`${at.deltaPP >= 0 ? '+' : '−'}${Math.abs(at.deltaPP).toFixed(1)} pp`}
         note={benchmarkSentence(benchmark)}
       />
 
       <KpiRow>
-        <StatTile label="Nodes" value={result.nodeCount.toLocaleString()}
+        <StatTile label="Towers" value={result.nodeCount.toLocaleString()}
           note={`from ${result.candidateCount.toLocaleString()} blue-noise candidates`} />
         <StatTile label="Set-cover saving" value={`${result.reductionPct.toFixed(0)}%`}
           note="hardware removed by the minimisation stage alone" />
@@ -51,7 +51,7 @@ export function BenchmarkPanel() {
         margin: '16px 0 2px', fontSize: 12, fontWeight: 600,
         color: PALETTE.chart.inkMuted, letterSpacing: 0.4,
       }}>
-        Risk-weighted coverage against node budget
+        Risk-weighted coverage against tower budget
       </h3>
       <CoverageBudgetChart result={benchmark} />
 

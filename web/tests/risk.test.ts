@@ -65,6 +65,72 @@ describe('recombineRisk reproduces plan.risk_field', () => {
   }
 })
 
+/**
+ * The lightning region's anchor. The pivot's whole claim is that swapping ONE
+ * raster changes what risk means without changing a line of the arithmetic —
+ * so the same recombination that reproduces the fire-driven region has to
+ * reproduce the lightning-driven one, bit for bit, off a file with a different
+ * name and a completely different meaning. If sample_density ever flips north
+ * for south, or the normalisation drifts, this is what fails.
+ */
+describe('recombineRisk on the lightning region', () => {
+  const jbDir = join(__dirname, '..', 'public', 'data', 'james-bay')
+  const meta = JSON.parse(readFileSync(join(jbDir, 'meta.json'), 'utf-8'))
+  const jbBytes = (name: string): Uint8Array => {
+    const b = readFileSync(join(jbDir, name))
+    return new Uint8Array(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength))
+  }
+
+  it('is driven by lightning, not by fire history', () => {
+    expect(meta.layer).toBe('lightning')
+    expect(meta.layerFile).toBe('lightning.bin')
+    expect(meta.firmsCount).toBeUndefined()
+  })
+
+  it('reproduces the committed risk.bin bit for bit from classes + lightning', () => {
+    const cb = jbBytes('classes.bin')
+    const lb = jbBytes('lightning.bin')
+    const rb = jbBytes('risk.bin')
+    const baked = new Float32Array(rb.buffer, rb.byteOffset, rb.byteLength / 4)
+    const out = recombineRisk({
+      classes: { nx: meta.nx, ny: meta.ny, data: cb },
+      activity: new Float32Array(lb.buffer, lb.byteOffset, lb.byteLength / 4),
+      fwiNorm: meta.fwiNorm as number,
+      lut: flammabilityLut(meta.flammability),
+    }, {
+      wWeather: meta.weightDefaults.wWeather,
+      wActivity: meta.weightDefaults.wActivity,
+      wBase: meta.weightDefaults.wBase,
+    })
+    let diffs = 0
+    let firstBad = -1
+    for (let i = 0; i < baked.length; i++) {
+      if (out.risk.data[i] !== baked[i]) { if (firstBad < 0) firstBad = i; diffs++ }
+    }
+    expect({ diffs, firstBad }).toEqual({ diffs: 0, firstBad: -1 })
+    expect(out.peak).toBe(meta.riskPeak)
+  })
+
+  it('carries the strike gradient west to east, the way the counts do', () => {
+    // The region was chosen for a coast-to-inland gradient and the bake
+    // measured one in the raw flash counts (1.91x, p = 4.8e-06). This checks
+    // the shipped raster kept it, and kept its DIRECTION: row 0 is the south
+    // edge and column 0 is the west edge — the shoreline — so a mirrored
+    // sample would look entirely plausible and be completely wrong.
+    const lb = jbBytes('lightning.bin')
+    const f = new Float32Array(lb.buffer, lb.byteOffset, lb.byteLength / 4)
+    let west = 0
+    let east = 0
+    for (let y = 0; y < meta.ny; y++) {
+      west += f[y * meta.nx]
+      east += f[y * meta.nx + meta.nx - 1]
+    }
+    expect(east / west).toBeGreaterThan(2)
+    expect(meta.lightningGate.eastWestRatio).toBeGreaterThan(1.5)
+    expect(meta.lightningGate.verdict).toBe('gradient')
+  })
+})
+
 describe('recombineRisk on the real region', () => {
   const meta = JSON.parse(readFileSync(join(DIR, 'meta.json'), 'utf-8'))
 

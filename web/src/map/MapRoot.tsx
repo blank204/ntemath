@@ -41,8 +41,12 @@ export function MapRoot() {
     const map = new maplibregl.Map({
       container: ref.current,
       style: style as maplibregl.StyleSpecification | string,
-      center: [-119.85, 34.7],
-      zoom: 8.4,
+      // The James Bay box's centre, and only until the region's own meta
+      // arrives — fitRegion reframes on the real bounds as soon as the
+      // style is ready. Opening on California would put the map somewhere
+      // the product's premise does not hold.
+      center: [-78.5, 52.1],
+      zoom: 6.2,
       pitch: 0,
       attributionControl: {
         compact: true,
@@ -53,6 +57,7 @@ export function MapRoot() {
         customAttribution:
           'Land cover: <a href="https://esa-worldcover.org/" target="_blank" ' +
           'rel="noreferrer">ESA WorldCover</a> (CC BY 4.0) · ' +
+          'Lightning: NASA LIS/OTD climatology · ' +
           'Fire detections: NASA FIRMS · Weather: ERA5 / Open-Meteo',
       },
     })

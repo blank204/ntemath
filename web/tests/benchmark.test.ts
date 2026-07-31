@@ -3,7 +3,87 @@ import { benchmarkBudgets, runBenchmark } from '../src/lib/benchmark'
 import { runPlacement, strideKm } from '../src/lib/pipeline'
 import { uniformGrid, capToCommonCount } from '../src/lib/grid'
 import { coverageOf, demandPoints } from '../src/lib/cover'
-import { loadLosPadres, DEFAULT_TEST_PARAMS } from './helpers/losPadres'
+import {
+  loadLosPadres, DEFAULT_TEST_PARAMS, LOS_PADRES_DETECT_KM,
+} from './helpers/losPadres'
+import { loadJamesBay } from './helpers/jamesBay'
+import { DEFAULT_PARAMS } from '../src/state/useModelStore'
+
+/**
+ * THE SHIPPED CONFIGURATION: the lightning region, at the defaults the Lab
+ * actually opens on. Los Padres remains the Python parity anchor, but the
+ * numbers on screen — and in the video — come from here, so here is where
+ * they get pinned.
+ */
+describe('runBenchmark on the shipped region at the shipped defaults', () => {
+  let cachedJb: ReturnType<typeof buildJb> | null = null
+  function buildJb() {
+    const region = loadJamesBay()
+    const placed = runPlacement(region, DEFAULT_PARAMS)
+    const result = runBenchmark({
+      risk: placed.risk, mask: region.mask,
+      widthKm: region.meta.widthKm, heightKm: region.meta.heightKm,
+      nodes: placed.nodes, detectKm: DEFAULT_PARAMS.detectKm,
+      demandStride: DEFAULT_PARAMS.demandStride,
+      strideKm: strideKm(region.meta, DEFAULT_PARAMS.demandStride),
+    })
+    return { region, placed, result }
+  }
+  const jb = () => (cachedJb ??= buildJb())
+
+  it('saturates the region with towers in the tens, not the hundreds', () => {
+    // 111 towers for 77,000 km2. The old 2 km rod radius needed 572 for a
+    // region a fifteenth of the size, which is the difference between a
+    // sensor network and infrastructure.
+    const { placed } = jb()
+    expect(placed.nodeCount).toBe(111)
+    expect(placed.coveredFraction).toBeCloseTo(0.9513636910819747, 12)
+    expect(placed.budget.rMinKm).toBe(8.25)
+    expect(placed.budget.rMaxKm).toBe(19.5)
+  }, 300000)
+
+  it('beats the uniform grid by a wider margin than the 2 km region did', () => {
+    // +5.56 pp against Los Padres' +3.55. The spec predicted this: the grid
+    // spaces for single coverage and does relatively worse when there are
+    // few, large circles to place, which is exactly the tower regime.
+    const { result } = jb()
+    expect(result.bestMargin.deltaPP).toBeCloseTo(5.556698494443458, 9)
+    expect(result.bestMargin.requested).toBe(37)
+    expect(result.bestMargin.deltaPP).toBeGreaterThan(3.5488421301039463)
+  }, 300000)
+
+  it('still hands the lead to the grid once the region is saturated', () => {
+    // The honest half of the same measurement, and the reason the page
+    // reports a curve rather than a headline: past the crossover, spacing
+    // evenly wins, because there is no risk left to prioritise.
+    const { result } = jb()
+    expect(result.atBudget.deltaPP).toBeCloseTo(-1.4086576958759145, 9)
+    expect(result.crossoverNodes).toBe(88)
+    expect(result.crossoverBracket).toEqual([77, 111])
+  }, 300000)
+
+  it('scores both arms on the same realised count at every budget', () => {
+    for (const p of jb().result.points) {
+      expect(p.scored).toBeLessThanOrEqual(p.requested)
+      expect(p.scored).toBeGreaterThan(0)
+    }
+  }, 300000)
+})
+
+describe('the parameters the committed Los Padres figures were measured at', () => {
+  it('diverge from the shipped defaults in the detection radius and nothing else', () => {
+    // The whole point of spreading DEFAULT_PARAMS rather than restating it:
+    // changing any other shipped default has to move these curves and fail
+    // here, so the site can never ship a number nobody measured. The radius
+    // is the one deliberate exception, because 2 km was a rod's range and
+    // the pivot moved the product to towers.
+    expect(DEFAULT_TEST_PARAMS.detectKm).toBe(LOS_PADRES_DETECT_KM)
+    expect(DEFAULT_PARAMS.detectKm).not.toBe(LOS_PADRES_DETECT_KM)
+    const differing = (Object.keys(DEFAULT_PARAMS) as Array<keyof typeof DEFAULT_PARAMS>)
+      .filter((k) => DEFAULT_TEST_PARAMS[k] !== DEFAULT_PARAMS[k])
+    expect(differing).toEqual(['detectKm'])
+  })
+})
 
 describe('benchmarkBudgets', () => {
   it('is strictly increasing, starts small, and ends at the full count', () => {

@@ -1,8 +1,51 @@
 import type { BBox, ClassField, Field } from './types'
 import { burnableMaskOf } from './risk'
 
+/**
+ * What the third term of the risk formula means in a given region.
+ *
+ * `lightning` is strike density from the NASA LIS/OTD climatology — where
+ * ignition is likely. `fire-activity` is FIRMS detections — where fire has
+ * recently been. They are opposite claims wearing the same array shape, so
+ * no region is allowed to leave it unsaid.
+ */
+export type RiskLayer = 'lightning' | 'fire-activity'
+
+/**
+ * The measurement the bake ran on the raw climatology before it was allowed
+ * to influence a single tower position: is the strike field across this box
+ * distinguishable from a uniform rate, and does it vary along the axis the
+ * region was chosen for? Published so the page can quote a measurement
+ * instead of a claim. See tools/bake/lightning.py:gradient_report.
+ */
+export interface LightningGate {
+  /** Native climatology cells observed inside the box. Forty, at 0.5°. */
+  cells: number
+  nativeDeg: number
+  flashes: number
+  flashesPerCell: number
+  viewtimeSpreadPct: number
+  rateMin: number
+  rateMax: number
+  rateMean: number
+  chi2: number
+  dof: number
+  pUniform: number
+  westFlashes: number
+  eastFlashes: number
+  eastWestRatio: number
+  pEastWest: number
+  spearmanRho: number
+  pSpearman: number
+  /** 'gradient' | 'structured' | 'flat' — 'flat' means decorative, say so. */
+  verdict: string
+}
+
 export interface RegionMeta {
   name: string
+  layer: RiskLayer
+  /** Filename of that layer's raster, relative to the region directory. */
+  layerFile: string
   box: [number, number, number, number]
   nx: number
   ny: number
@@ -12,8 +55,11 @@ export interface RegionMeta {
   forestFraction: number
   fwiP90: number
   fwiNorm: number
-  firmsCount: number
-  firmsPadDeg: number
+  /** Fire-activity regions only. */
+  firmsCount?: number
+  firmsPadDeg?: number
+  /** Lightning regions only: the measured gradient gate, verbatim. */
+  lightningGate?: LightningGate
   classMix: Record<string, number>
   /**
    * Flat pixel index (row-major, row 0 at south) where the bake resolved the
@@ -39,7 +85,14 @@ export interface RegionMeta {
 export interface RegionData {
   meta: RegionMeta
   classes: ClassField
-  /** The baked FIRMS activity field, float32, same orientation as `classes`. */
+  /**
+   * The third risk term's field, float32, same orientation as `classes`,
+   * normalised to its own peak inside the box. What it MEANS is
+   * `meta.layer`: lightning strike density, or FIRMS fire activity. The
+   * property keeps the name of `plan.risk_field`'s `activity` parameter,
+   * which is upstream and read-only — anything user-facing must read the
+   * meaning off `meta.layer` rather than off this name.
+   */
   activity: Float32Array
   /** Derived from `classes` and `meta.burnableClasses`, never fetched. */
   mask: Field
@@ -64,6 +117,7 @@ async function get(f: typeof fetch, url: string): Promise<Response> {
  */
 function requireMeta(meta: RegionMeta, name: string): void {
   const required: Array<[string, unknown]> = [
+    ['layer', meta.layer], ['layerFile', meta.layerFile],
     ['box', meta.box],
     ['nx', meta.nx], ['ny', meta.ny], ['widthKm', meta.widthKm],
     ['heightKm', meta.heightKm], ['areaKm2', meta.areaKm2],
@@ -125,11 +179,14 @@ export async function loadRegion(
     )
   }
 
-  const actBuf = await (await get(fetchImpl, `${base}/activity.bin`)).arrayBuffer()
+  // The layer file is named by the region, never assumed: james-bay ships
+  // lightning.bin and los-padres ships activity.bin, and loading one while
+  // believing it is the other would relabel the entire risk field.
+  const actBuf = await (await get(fetchImpl, `${base}/${meta.layerFile}`)).arrayBuffer()
   const activity = new Float32Array(actBuf)
   if (activity.length !== expected) {
     throw new Error(
-      `activity.bin has ${activity.length} values, meta says ${expected}`,
+      `${meta.layerFile} has ${activity.length} values, meta says ${expected}`,
     )
   }
 

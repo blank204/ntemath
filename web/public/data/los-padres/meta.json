@@ -70,5 +70,7 @@
    "elevation/slope",
    "camper traffic"
   ]
- }
+ },
+ "layer": "fire-activity",
+ "layerFile": "activity.bin"
 }

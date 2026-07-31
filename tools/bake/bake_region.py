@@ -431,6 +431,12 @@ def refresh_notes(name: str) -> str:
     path = os.path.join(OUT_ROOT, name, "meta.json")
     with open(path, encoding="utf-8") as fh:
         meta = json.load(fh)
+    # The layer declaration is a pure function of the region table too, so a
+    # region baked before it existed gets it here rather than leaving the
+    # browser to guess which file holds the third risk term.
+    meta["layer"] = layer_for(name)
+    meta["layerFile"] = ("lightning.bin" if meta["layer"] == "lightning"
+                         else "activity.bin")
     # Read the layer's own provenance back out of the file rather than
     # re-measuring: a notes refresh must not be able to move a number.
     pad = meta.get("firmsPadDeg")

@@ -7,7 +7,8 @@ import { loadRegion, loadManifest } from '../src/lib/loadRegion'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
 const meta = {
-  name: 'test', box: [-1, 2, 0, 3], nx: 2, ny: 2,
+  name: 'test', layer: 'fire-activity', layerFile: 'activity.bin',
+  box: [-1, 2, 0, 3], nx: 2, ny: 2,
   widthKm: 10, heightKm: 20, forestFraction: 0.5, fwiP90: 40,
   fwiNorm: 0.5, firmsCount: 3, firmsPadDeg: 0.25, classMix: { '10': 0.5 },
   seedFlatIndex: 0, seedTiesAtMax: 1, areaKm2: 200, riskPeak: 0.7,
@@ -67,6 +68,94 @@ describe('loadRegion', () => {
     const bad = (async () => ({ ok: false, status: 500 })) as any
     await expect(loadRegion('test', bad)).rejects.toThrow(/500/)
   })
+
+  // The third risk term means opposite things either side of the lightning
+  // pivot — "where ignition is likely" against "where fire has recently
+  // been" — and both wear the same array shape. The region says which file
+  // holds it and what it means; the loader must not guess either.
+  it('fetches the layer file the region declares', async () => {
+    const lightningMeta = {
+      ...meta, name: 'james-bay',
+      layer: 'lightning', layerFile: 'lightning.bin',
+    }
+    const asked: string[] = []
+    const f = (async (url: string) => {
+      asked.push(url)
+      if (url.endsWith('meta.json')) return { ok: true, json: async () => lightningMeta } as any
+      if (url.endsWith('classes.bin')) {
+        return { ok: true, arrayBuffer: async () => Uint8Array.from([10, 30, 80, 10]).buffer } as any
+      }
+      if (url.endsWith('lightning.bin')) {
+        return { ok: true, arrayBuffer: async () => Float32Array.from([0, 0.5, 0.75, 1]).buffer } as any
+      }
+      return { ok: false, status: 404 } as any
+    }) as any
+
+    const r = await loadRegion('james-bay', f)
+
+    expect(asked).toContain('/data/james-bay/lightning.bin')
+    expect(asked).not.toContain('/data/james-bay/activity.bin')
+    expect(Array.from(r.activity)).toEqual([0, 0.5, 0.75, 1])
+    expect(r.meta.layer).toBe('lightning')
+  })
+
+  it('names the declared layer file when its length disagrees', async () => {
+    const lightningMeta = { ...meta, layer: 'lightning', layerFile: 'lightning.bin' }
+    const f = (async (url: string) => {
+      if (url.endsWith('meta.json')) return { ok: true, json: async () => lightningMeta } as any
+      if (url.endsWith('classes.bin')) {
+        return { ok: true, arrayBuffer: async () => Uint8Array.from([10, 30, 80, 10]).buffer } as any
+      }
+      if (url.endsWith('lightning.bin')) {
+        return { ok: true, arrayBuffer: async () => Float32Array.from([0, 1]).buffer } as any
+      }
+      return { ok: false, status: 404 } as any
+    }) as any
+    await expect(loadRegion('test', f)).rejects.toThrow(/lightning\.bin/)
+  })
+
+  it('rejects a region that does not declare its layer', async () => {
+    // A meta.json baked before the pivot would otherwise fall back to some
+    // default and quietly label strike density as fire detections.
+    const stripped = { ...meta } as any
+    delete stripped.layerFile
+    const f = (async (url: string) =>
+      url.endsWith('meta.json')
+        ? { ok: true, json: async () => stripped }
+        : { ok: true, arrayBuffer: async () => new ArrayBuffer(4) }) as any
+    await expect(loadRegion('test', f)).rejects.toThrow(/layerFile/)
+  })
+
+  it('loads the real committed james-bay lightning components from disk', async () => {
+    const dataDir = join(__dirname, '..', 'public', 'data', 'james-bay')
+    const realMeta = JSON.parse(readFileSync(join(dataDir, 'meta.json'), 'utf-8'))
+    const slice = (b: Buffer) => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength)
+    const classBuf = readFileSync(join(dataDir, 'classes.bin'))
+    const layerBuf = readFileSync(join(dataDir, 'lightning.bin'))
+    const f = (async (url: string) => {
+      if (url.endsWith('meta.json')) return { ok: true, json: async () => realMeta } as any
+      if (url.endsWith('classes.bin')) return { ok: true, arrayBuffer: async () => slice(classBuf) } as any
+      if (url.endsWith('lightning.bin')) return { ok: true, arrayBuffer: async () => slice(layerBuf) } as any
+      return { ok: false, status: 404 } as any
+    }) as any
+
+    const r = await loadRegion('james-bay', f)
+
+    expect(r.meta.layer).toBe('lightning')
+    expect(r.activity.length).toBe(r.meta.nx * r.meta.ny)
+    // Normalised to its own peak inside the box, exactly as the fire-activity
+    // layer it replaces was — which is what keeps the recombination identical.
+    let peak = 0
+    let outOfRange = 0
+    for (let i = 0; i < r.activity.length; i++) {
+      const v = r.activity[i]
+      if (!(v >= 0 && v <= 1)) outOfRange++
+      if (v > peak) peak = v
+    }
+    expect(outOfRange).toBe(0)
+    expect(peak).toBe(1)
+    expect(r.mask.data[r.meta.seedFlatIndex]).toBe(1)
+  }, 20000)
 
   it('loads the real committed los-padres components from disk', async () => {
     const dataDir = join(__dirname, '..', 'public', 'data', 'los-padres')

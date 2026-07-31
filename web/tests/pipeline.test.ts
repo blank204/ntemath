@@ -7,7 +7,9 @@ import { runPlacement, type PlaceParams } from '../src/lib/pipeline'
 import { loadRegion, type RegionData, type RegionMeta } from '../src/lib/loadRegion'
 import { burnableMaskOf, DEFAULT_WEIGHTS } from '../src/lib/risk'
 import { autoBudget } from '../src/lib/budget'
-import { DEFAULT_PARAMS } from '../src/state/useModelStore'
+// Every run in this file is on Los Padres, whose committed figures were
+// measured at a 2 km detection radius. See helpers/losPadres.ts.
+import { DEFAULT_TEST_PARAMS as DEFAULT_PARAMS } from './helpers/losPadres'
 // The real region loader lives in one place now — this file, benchmark.test.ts
 // and fairness.test.ts were each hand-rolling the same byte-slicing.
 import { loadLosPadres as losPadres } from './helpers/losPadres'

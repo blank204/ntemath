@@ -72,9 +72,27 @@ interface ModelState {
  * The drive weights are spread from risk.ts's DEFAULT_WEIGHTS, which carries
  * plan.risk_field's own literal parameter defaults — also never restated here.
  */
+/**
+ * The region the Lab opens on: the one whose risk field is driven by
+ * lightning rather than by fire history. Every other region in the picker
+ * still loads, and the picker says which of them lightning even applies to.
+ */
+export const DEFAULT_REGION = 'james-bay'
+
 export const DEFAULT_PARAMS: PlaceParams = {
   seed: 7,
-  detectKm: 2.0,
+  /**
+   * A tower's confirmation range, not a rod's. The camera sees a flash to
+   * the horizon; what bounds this number is the acoustics — audible thunder
+   * tops out near 20 km, and terrain and temperature gradients open shadow
+   * zones well inside that, so 15 km is the range the flash-to-bang layer
+   * can stand behind rather than the range a camera can see.
+   *
+   * It is also what puts tower counts in the tens, which is the regime where
+   * Benchmark A measured risk-driven siting beating a uniform grid by its
+   * widest margin (+3.55 pp at 132 nodes, with the grid ahead past 285).
+   */
+  detectKm: 15,
   target: 0.95,
   demandStride: 4,
   budgetMode: 'saturation',
@@ -84,7 +102,7 @@ export const DEFAULT_PARAMS: PlaceParams = {
 }
 
 export const useModelStore = create<ModelState>((set) => ({
-  regionName: 'los-padres',
+  regionName: DEFAULT_REGION,
   region: null,
   availableRegions: [],
   params: DEFAULT_PARAMS,

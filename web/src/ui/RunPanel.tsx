@@ -6,7 +6,9 @@ import type { RegionMeta } from '../lib/loadRegion'
 import { loadManifest } from '../lib/loadRegion'
 import { strideKm } from '../lib/pipeline'
 import { regionOptions } from '../lib/regions'
-import { budgetSentence, unbakedNotice, weightSentence } from './copy'
+import {
+  budgetSentence, gateSentence, ignitionCaveat, unbakedNotice, weightSentence,
+} from './copy'
 import type { DoneMessage, ErrorMessage, RunMessage } from '../workers/place.worker'
 
 const asText = (v: unknown): string | null =>
@@ -59,13 +61,14 @@ function Provenance({ meta, strideText }: { meta: RegionMeta; strideText: string
           <Note label="baked" body={`${meta.name}, ${baked} (UTC). Grid ${meta.nx}x${meta.ny}.`} />
           {asText(notes.landcover) && <Note label="land cover" body={asText(notes.landcover)!} />}
           {asText(notes.activity) && <Note label="fire activity" body={asText(notes.activity)!} />}
+          {asText(notes.lightning) && <Note label="lightning" body={asText(notes.lightning)!} />}
           {asText(notes.weather) && <Note label="fire weather" body={asText(notes.weather)!} />}
           {asText(notes.riskFormula) && <Note label="risk formula" body={asText(notes.riskFormula)!} />}
           <Note
             label="coverage"
             body={
               `Risk-weighted coverage is the share of burnable-area demand ` +
-              `weight within the detection radius of a node, scored on a ` +
+              `weight within the confirmation radius of a tower, scored on a ` +
               `${strideText} sampling stride. Area covered is the same set ` +
               `of demand points counted unweighted.`
             }
@@ -77,6 +80,7 @@ function Provenance({ meta, strideText }: { meta: RegionMeta; strideText: string
             label="attribution"
             body={
               'Land cover: ESA WorldCover, CC BY 4.0. ' +
+              'Lightning: NASA LIS/OTD gridded climatology (public domain). ' +
               'Fire detections: NASA FIRMS. Weather: ERA5 via Open-Meteo. ' +
               'Basemap: MapTiler, © OpenStreetMap contributors.'
             }
@@ -236,6 +240,9 @@ export function RunPanel() {
   const stride = region ? strideKm(region.meta, params.demandStride) : null
   const options = regionOptions(availableRegions)
   const selected = options.find((o) => o.key === regionName) ?? null
+  // Which regions are baked, by label, straight off the manifest — so the
+  // "not baked" notice names the current truth rather than a remembered one.
+  const bakedLabels = options.filter((o) => o.baked).map((o) => o.label)
 
   return (
     <div style={panel}>
@@ -250,9 +257,9 @@ export function RunPanel() {
           onChange={(e) => setRegionName(e.target.value)}
           style={control}
         >
-          {/* All eight are listed. The seven without data are disabled and say
-              so — the model runs anywhere, the bake is what is missing, and
-              hiding them would understate the first while pretending the
+          {/* Every region is listed. The ones without data are disabled and
+              say so — the model runs anywhere, the bake is what is missing,
+              and hiding them would understate the first while pretending the
               second. */}
           {options.map((o) => (
             <option key={o.key} value={o.key} disabled={!o.baked}>
@@ -263,8 +270,20 @@ export function RunPanel() {
       </label>
       {selected && (
         <p style={{ color: PALETTE.chart.inkMuted, marginTop: 6, fontSize: 11 }}>
-          {selected.regime}
-          {!selected.baked && ` · ${unbakedNotice(selected.label)}`}
+          {selected.regime} · ignition: {selected.ignition}
+          {!selected.baked && ` · ${unbakedNotice(selected.label, bakedLabels)}`}
+        </p>
+      )}
+      {/* Said out loud rather than left to the reader: a tower that watches
+          for lightning is worth nothing where people start the fires. */}
+      {selected && ignitionCaveat(selected) && (
+        <p style={{ color: PALETTE.brandOrange, marginTop: 6, fontSize: 11 }}>
+          {ignitionCaveat(selected)}
+        </p>
+      )}
+      {region?.meta.lightningGate && (
+        <p style={{ color: PALETTE.chart.inkMuted, marginTop: 6, fontSize: 11, lineHeight: 1.5 }}>
+          {gateSentence(region.meta.lightningGate)}
         </p>
       )}
 
@@ -280,7 +299,9 @@ export function RunPanel() {
       </label>
 
       <label style={{ display: 'block', marginTop: 12 }}>
-        Observed-activity weight: {params.wActivity.toFixed(2)}
+        {region?.meta.layer === 'fire-activity'
+          ? 'Observed-activity weight' : 'Strike-density weight'}
+        : {params.wActivity.toFixed(2)}
         <input
           // Capped at what the weather weight leaves, so the base weight the
           // readout below shows can never go negative.
@@ -296,13 +317,17 @@ export function RunPanel() {
         {weightSentence({
           wWeather: params.wWeather, wActivity: params.wActivity,
           wBase: params.wBase, fwiNorm: region?.meta.fwiNorm ?? 0,
+          layer: region?.meta.layer ?? 'lightning',
         })}
       </div>
 
       <label style={{ display: 'block', marginTop: 12 }}>
-        Detection radius: {params.detectKm.toFixed(1)} km
+        Confirmation radius: {params.detectKm.toFixed(1)} km
         <input
-          type="range" min={0.5} max={5} step={0.1} value={params.detectKm}
+          // Up to 20 km, where audible thunder gives out. The camera sees
+          // the flash much further; what this slider bounds is the range at
+          // which flash-to-bang can confirm the strike is real and place it.
+          type="range" min={1} max={20} step={0.5} value={params.detectKm}
           // Spacing is no longer a separate parameter: the pipeline derives it
           // from detectKm through budget.ts, the way plan_region does.
           onChange={(e) => setParam('detectKm', Number(e.target.value))}

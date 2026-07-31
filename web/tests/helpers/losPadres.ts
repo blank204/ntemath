@@ -2,7 +2,9 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import type { RegionData, RegionMeta } from '../../src/lib/loadRegion'
+import type { PlaceParams } from '../../src/lib/pipeline'
 import { burnableMaskOf } from '../../src/lib/risk'
+import { DEFAULT_PARAMS } from '../../src/state/useModelStore'
 
 const DIR = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -39,8 +41,27 @@ export function loadLosPadres(): RegionData {
 }
 
 /**
- * The Lab's shipped defaults — re-exported, not restated. A second copy would
- * let someone change the shipped `detectKm` while the benchmark tests kept
- * passing at 2.0, and the site would ship a curve nobody measured.
+ * The detection radius every committed Los Padres figure was measured at.
+ *
+ * It is NOT the shipped default any more. That was 2 km — a smoke sensor on
+ * a post — and the lightning pivot moved the shipped default to a tower's
+ * 15 km confirmation range. The Python parity references in pipeline.test.ts
+ * and the benchmark curve in benchmark.test.ts were measured at 2 km, so
+ * that is what they must keep running at; re-pointing them at the new
+ * default would not "update" those numbers, it would silently replace one
+ * measurement with a different one and call it the same claim.
  */
-export { DEFAULT_PARAMS as DEFAULT_TEST_PARAMS } from '../../src/state/useModelStore'
+export const LOS_PADRES_DETECT_KM = 2
+
+/**
+ * The Lab's shipped defaults, with only that radius pinned back.
+ *
+ * Everything else is spread from the real DEFAULT_PARAMS rather than
+ * restated, so changing any OTHER shipped default — a weight, the coverage
+ * target, the demand stride — still moves these numbers and still fails
+ * loudly. `losPadresParamsDivergeOnlyInRadius` in benchmark.test.ts is what
+ * keeps that promise honest.
+ */
+export const DEFAULT_TEST_PARAMS: PlaceParams = {
+  ...DEFAULT_PARAMS, detectKm: LOS_PADRES_DETECT_KM,
+}
