@@ -107,7 +107,9 @@ def source_notes(name: str, nx: int, ny: int, firms_pad_deg: float) -> dict:
     }
 
 
-def bake(name: str, max_px: int = 900) -> str:
+def bake(name: str, max_px: int = 900,
+         fwi_start: str | None = None, fwi_end: str | None = None,
+         fwi_value: float | None = None) -> str:
     box = REGIONS[name]
     print(f"[{name}] {box.width_km:.0f} x {box.height_km:.0f} km "
           f"({box.area_km2:,.0f} km2)")
@@ -154,14 +156,23 @@ def bake(name: str, max_px: int = 900) -> str:
     activity32 = np.ascontiguousarray(activity64, dtype="<f4")
     activity = activity32.astype(np.float64)
 
-    # Same date window plan_region uses: end = today - 7d, start = end - 180d.
+    # Same date window plan_region uses: end = today - 7d, start = end - 180d
+    # -- unless the caller pins fwi_start/fwi_end/fwi_value, mirroring
+    # plan_region's own parameters of the same names so the two stay
+    # recognisably the same knob. Without a pin this window is date-dependent
+    # (today() moves it), so an un-pinned re-bake -- for ANY reason, including
+    # adding an unrelated region -- can silently move every pixel of risk.bin.
     # peak_fwi_for_points takes a LIST OF (lon, lat) POINTS, not a box, and
     # returns an array -- one point (the region centre) is enough at ERA5's
     # ~25 km resolution for boxes this size.
-    end = (dt.date.today() - dt.timedelta(days=7)).isoformat()
-    start = (dt.date.fromisoformat(end) - dt.timedelta(days=180)).isoformat()
+    end = fwi_end or (dt.date.today() - dt.timedelta(days=7)).isoformat()
+    start = fwi_start or (
+        dt.date.fromisoformat(end) - dt.timedelta(days=180)).isoformat()
     lon0, lat0 = box.centre
-    fwi = float(hazard.peak_fwi_for_points([(lon0, lat0)], start, end)[0])
+    # fwi_value lets a pinned re-bake skip the Open-Meteo fetch entirely --
+    # same shortcut plan_region's fwi_value gives a batch run.
+    fwi = (float(fwi_value) if fwi_value is not None else
+           float(hazard.peak_fwi_for_points([(lon0, lat0)], start, end)[0]))
     fwi_norm = normalise_fwi(fwi)
     print(f"  FIRMS within {firms_pad_deg:g} deg of box: {n_local}   "
           f"FWI p90 ({start}..{end}): {fwi:.1f}")
@@ -257,6 +268,13 @@ def bake(name: str, max_px: int = 900) -> str:
         "forestFraction": float(forest.forest_fraction(classes)),
         "fwiP90": float(fwi),
         "fwiNorm": float(fwi_norm),
+        # The RESOLVED window (actual dates used), not the day-offsets that
+        # produced them -- so a later bake can pin this exact window via
+        # --fwi-start/--fwi-end (or --pin-window, which reads these two
+        # fields plus fwiP90 straight out of this file) and reproduce
+        # risk.bin bit-for-bit instead of drifting with today().
+        "fwiStart": start,
+        "fwiEnd": end,
         # NOTE: padded, not strictly in-box -- see firmsPadDeg and
         # sourceNotes.activity below. activity_field does the same padded
         # lookup, but then filters on conf >= min_conf (hazard.py:138)
@@ -344,12 +362,46 @@ def main(argv=None) -> int:
         "--notes-only", action="store_true",
         help="rewrite sourceNotes in an existing meta.json without re-baking",
     )
+    p.add_argument(
+        "--fwi-start", dest="fwi_start", default=None,
+        help=("pin the FWI window's start date (YYYY-MM-DD) instead of "
+              "resolving end-180d, mirroring plan.plan_region's fwi_start"),
+    )
+    p.add_argument(
+        "--fwi-end", dest="fwi_end", default=None,
+        help=("pin the FWI window's end date (YYYY-MM-DD) instead of "
+              "resolving today()-7d, mirroring plan.plan_region's fwi_end"),
+    )
+    p.add_argument(
+        "--fwi-value", dest="fwi_value", type=float, default=None,
+        help=("pin the resolved FWI p90 value directly and skip the "
+              "Open-Meteo fetch, mirroring plan.plan_region's fwi_value"),
+    )
+    p.add_argument(
+        "--pin-window", action="store_true",
+        help=("reuse the fwiStart/fwiEnd/fwiP90 already recorded in this "
+              "region's meta.json instead of resolving a new today()-relative "
+              "window, so re-baking for an unrelated reason cannot silently "
+              "move risk.bin. Ignored for a region with no existing "
+              "meta.json, and overridden by explicit --fwi-start/--fwi-end/"
+              "--fwi-value."),
+    )
     a = p.parse_args(argv)
     for name in (sorted(REGIONS) if a.all else [a.region]):
         if a.notes_only:
             refresh_notes(name)
-        else:
-            bake(name, max_px=a.max_px)
+            continue
+        fwi_start, fwi_end, fwi_value = a.fwi_start, a.fwi_end, a.fwi_value
+        if a.pin_window and fwi_start is None and fwi_end is None and fwi_value is None:
+            meta_path = os.path.join(OUT_ROOT, name, "meta.json")
+            if os.path.isfile(meta_path):
+                with open(meta_path, encoding="utf-8") as fh:
+                    prev_meta = json.load(fh)
+                fwi_start = prev_meta["fwiStart"]
+                fwi_end = prev_meta["fwiEnd"]
+                fwi_value = prev_meta["fwiP90"]
+        bake(name, max_px=a.max_px,
+             fwi_start=fwi_start, fwi_end=fwi_end, fwi_value=fwi_value)
     write_manifest()
     return 0
 

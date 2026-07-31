@@ -13,6 +13,8 @@
  "forestFraction": 0.5074148148148148,
  "fwiP90": 48.828067108847215,
  "fwiNorm": 0.6103508388605902,
+ "fwiStart": "2026-01-25",
+ "fwiEnd": "2026-07-24",
  "firmsCount": 2,
  "firmsPadDeg": 0.25,
  "classMix": {
@@ -58,7 +60,7 @@
  "km2PerNode": 140.0,
  "budgetLo": 6,
  "budgetHi": 40,
- "generated": "2026-07-31T10:09:43.871488+00:00",
+ "generated": "2026-07-31T10:25:30.988511+00:00",
  "sourceNotes": {
   "landcover": "ESA WorldCover v200 (2021 epoch), 10 m native, windowed via GDAL /vsicurl. forest.read_landcover decimates to at most 900 px on the long axis, so the SHIPPED grid is 900x600 -- about 92 m x 111 m per cell, not 10 m. Class labels are the native ones; the resolution is not.",
   "activity": "NASA FIRMS VIIRS 375 m + MODIS 1 km; RECENCY SIGNAL ONLY - the open feeds reach back days, not years. firmsCount is detections within firmsPadDeg (0.25 deg) of the box, not strictly inside it. It is an UPPER BOUND on what reaches the model, not the quantity the model integrates: hazard.activity_field applies the same padded lookup but then drops every detection below confidence 40, so the Gaussian kernel integrates over a subset of firmsCount whose size is not published here. The resulting activity field is normalised to its own peak within the box, so activity == 1.0 marks the most-active pixel in this region, not an absolute detection density.",
