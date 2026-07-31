@@ -104,6 +104,21 @@ export function RunPanel() {
 
   useEffect(() => () => { workerRef.current?.terminate() }, [])
 
+  // Changing region must invalidate any run still in flight. `setRegionName`
+  // clears result and benchmark, but without this the worker started under the
+  // OLD region still passes the runId check when it lands and puts that
+  // region's numbers straight back — 572 nodes and a Los Padres curve
+  // rendered under another region's name. Bumping the id makes the pending
+  // response stale by definition; terminating the worker stops the work; and
+  // `running` has to be released here too, or the Run button stays disabled
+  // until a message that will now be discarded arrives.
+  useEffect(() => {
+    runIdRef.current++
+    workerRef.current?.terminate()
+    workerRef.current = null
+    setRunning(false)
+  }, [regionName, setRunning])
+
   const run = () => {
     if (!region) return
     setRunning(true)
@@ -121,7 +136,13 @@ export function RunPanel() {
       if (e.data.type === 'done') {
         setResult(e.data.result)
         setBenchmark(e.data.benchmark)
-      } else setError(e.data.message)
+      } else {
+        // A failed run must not leave the previous run's stats on screen next
+        // to the error — the reader would take them for this run's answer.
+        setResult(null)
+        setBenchmark(null)
+        setError(e.data.message)
+      }
       setRunning(false)
       w.terminate()
       if (workerRef.current === w) workerRef.current = null

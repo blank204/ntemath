@@ -100,19 +100,26 @@ describe('recombineRisk on the real region', () => {
     // `1 - 0.45 - 0.35` is 0.20000000000000007, not the float64 literal 0.2
     // that plan.risk_field defaults to and that risk.bin was baked with. The
     // comment on recombineRisk used to claim that deriving w_base this way is
-    // "exactly what breaks bit-for-bit reproduction". Measured here: it does
-    // not. Zero of 540,000 pixels move. The /peak normalisation divides the
-    // near-uniform perturbation of `s` back out, and float32 narrowing absorbs
-    // what is left.
+    // "exactly what breaks bit-for-bit reproduction". Measured here: the
+    // RASTER does not move — 0 of 540,000 pixels — though the recorded peak
+    // scalar does, by one ulp, which is why this test asserts the two
+    // separately.
     //
-    // The three independent weights are still right, on the honest reason:
+    // This is a statement about THESE weights, not a general one. float32
+    // rounding happens to absorb a ~6e-17 relative perturbation here; at
+    // wWeather = 0 the same nudge moves up to 432 pixels. Do not broaden this
+    // into "the derivation never costs pixels" — that is false and the test
+    // would fail.
+    //
+    // The three independent weights are right for a different reason:
     // plan.risk_field's signature takes three, and nothing in the model
     // requires them to sum to 1. Forcing that constraint at the model boundary
     // would misreport what the Python does. The sum-to-1 rule is a slider
     // convention and lives in the store.
     //
-    // Keep this test. If a future change makes the derivation start costing
-    // pixels, that is worth knowing immediately.
+    // Keep this test: once Task 11 wires the sliders, moving one and putting
+    // it back swaps wBase from the literal 0.2 to 0.20000000000000007, so this
+    // is the round trip a reader will actually perform.
     const rb = bytes('risk.bin')
     const baked = new Float32Array(rb.buffer, rb.byteOffset, rb.byteLength / 4)
     const derivedBase = 1 - meta.weightDefaults.wWeather - meta.weightDefaults.wActivity
@@ -128,6 +135,12 @@ describe('recombineRisk on the real region', () => {
       if (out.risk.data[i] !== baked[i]) diffs++
     }
     expect(diffs).toBe(0)
+
+    // ...but the pre-normalisation peak is NOT reproduced. One ulp. Nothing
+    // consumes it (runPlacement discards `peak`), and that is exactly why it
+    // is worth pinning: an unconsumed scalar is where a quiet divergence hides.
+    expect(out.peak).not.toBe(meta.riskPeak)
+    expect(out.peak).toBeCloseTo(meta.riskPeak, 15)
   })
 
   it('changes the field when the weights change', () => {

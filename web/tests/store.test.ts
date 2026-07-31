@@ -62,6 +62,26 @@ describe('clampWeights', () => {
     expect(c).toEqual({ wWeather: 0, wActivity: 0, wBase: 1 })
   })
 
+  it('refuses NaN, which Math.min and Math.max both pass straight through', () => {
+    // A NaN weight makes every pixel NaN, so no pixel is the maximum, the seed
+    // never resolves, and the run fails with a message about the mask that
+    // has nothing to do with the cause.
+    expect(clampWeights({ wWeather: NaN, wActivity: 0.35 }).wWeather).toBe(0)
+    expect(clampWeights({ wWeather: 0.45, wActivity: NaN }).wActivity).toBe(0)
+    for (const v of Object.values(clampWeights({ wWeather: NaN, wActivity: NaN }))) {
+      expect(Number.isFinite(v)).toBe(true)
+    }
+  })
+
+  it('restores an exact snapshot through setParams without clamping it', () => {
+    // setParams must not rewrite the model's literal wBase into the derived
+    // one — it is how a reader gets back to the shipped defaults.
+    useModelStore.getState().setWeights({ wWeather: 0.9, wActivity: 0.9 })
+    useModelStore.getState().setParams(DEFAULT_PARAMS)
+    expect(useModelStore.getState().params.wBase).toBe(0.2)
+    expect(useModelStore.getState().params).toEqual(DEFAULT_PARAMS)
+  })
+
   it('leaves an already-legal pair alone apart from deriving the base', () => {
     const c = clampWeights({ wWeather: 0.2, wActivity: 0.3 })
     expect(c.wWeather).toBe(0.2)

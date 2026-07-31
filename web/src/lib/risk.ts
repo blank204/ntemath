@@ -13,11 +13,22 @@ import type { ClassField, Field } from './types'
  *
  * An earlier version of this comment claimed the derivation would break
  * bit-for-bit reproduction of `risk.bin`, because `1 - 0.45 - 0.35` is
- * 0.20000000000000007 rather than the literal 0.2. That was measured and is
- * false: zero of 540,000 pixels move, because the `/peak` normalisation
- * divides the near-uniform perturbation back out. See the test
- * "survives a derived w_base" in web/tests/risk.test.ts. The three-weight
- * signature is right for the first reason, not the second.
+ * 0.20000000000000007 rather than the literal 0.2. Measured, at the default
+ * weights, against the committed rasters:
+ *
+ *   - the raster is unchanged — 0 of 540,000 pixels move;
+ *   - the recorded `riskPeak` scalar DOES move, by one ulp
+ *     (0.8246578774872655 -> ...56).
+ *
+ * `peak` has no downstream consumer — `runPlacement` discards it — so nothing
+ * breaks, but do not read this as "deriving wBase is free". It is free for the
+ * raster at these weights only: the float32 grid absorbs a ~6e-17 relative
+ * perturbation by rounding, which is a tie accident and not a guarantee. At
+ * `wWeather = 0` the same 1-ulp nudge moves up to 432 pixels.
+ *
+ * See "survives a derived w_base" in web/tests/risk.test.ts. The three-weight
+ * signature is right because it is what the Python takes, not because of any
+ * of this.
  */
 export interface Weights {
   wWeather: number

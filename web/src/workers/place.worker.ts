@@ -39,37 +39,61 @@ export interface ErrorMessage {
   message: string
 }
 
-self.onmessage = (e: MessageEvent<RunMessage>) => {
-  if (e.data?.type !== 'run') return
-  const { runId } = e.data
-  try {
-    const { region, params } = e.data
-    const result = runPlacement(region, params)
-    const benchmark = runBenchmark({
-      risk: result.risk,
-      mask: region.mask,
-      widthKm: region.meta.widthKm,
-      heightKm: region.meta.heightKm,
-      nodes: result.nodes,
-      detectKm: params.detectKm,
-      demandStride: params.demandStride,
-      strideKm: strideKm(region.meta, params.demandStride),
-    })
-    // Transfer the big buffers rather than structured-cloning them. `risk`
-    // goes too: the map re-renders its raster from it, so the reader sees the
-    // field itself change when a weight moves. Transfer happens after
-    // runBenchmark has read them, never before.
-    ;(self as unknown as Worker).postMessage(
-      { type: 'done', runId, result, benchmark } satisfies DoneMessage,
-      [
-        result.candidates.buffer, result.nodes.buffer, result.risk.data.buffer,
-      ] as unknown as Transferable[],
-    )
-  } catch (err) {
-    ;(self as unknown as Worker).postMessage({
-      type: 'error',
-      runId,
-      message: err instanceof Error ? err.message : String(err),
-    } satisfies ErrorMessage)
+/**
+ * The whole body of a run: place, benchmark, and name the buffers to transfer.
+ *
+ * Split out of the message handler so it can be tested. The transfer list is
+ * the riskiest line in this file — three buffers that must be distinct, must
+ * each own their whole ArrayBuffer, and must all have been read from before
+ * they are handed away. Get any of that wrong and it is a runtime
+ * `DataCloneError` or a silently truncated raster, neither of which the type
+ * checker can see.
+ */
+export function buildDone(
+  runId: number, region: RegionData, params: PlaceParams,
+): { message: DoneMessage; transfer: ArrayBufferLike[] } {
+  const result = runPlacement(region, params)
+  const benchmark = runBenchmark({
+    risk: result.risk,
+    mask: region.mask,
+    widthKm: region.meta.widthKm,
+    heightKm: region.meta.heightKm,
+    nodes: result.nodes,
+    detectKm: params.detectKm,
+    demandStride: params.demandStride,
+    strideKm: strideKm(region.meta, params.demandStride),
+  })
+  // Transfer the big buffers rather than structured-cloning them. `risk` goes
+  // too: the map re-renders its raster from it, so the reader sees the field
+  // itself change when a weight moves. runBenchmark has already read all three
+  // by this point — `BenchmarkResult` is plain scalars and copies, holding no
+  // view back onto them.
+  return {
+    message: { type: 'done', runId, result, benchmark },
+    transfer: [
+      result.candidates.buffer, result.nodes.buffer, result.risk.data.buffer,
+    ],
+  }
+}
+
+// Guarded so the module can be imported on the main thread — which the tests
+// do, to exercise `buildDone` and its transfer list without a Worker. Outside
+// a worker there is no `self` to attach a handler to.
+if (typeof self !== 'undefined') {
+  self.onmessage = (e: MessageEvent<RunMessage>) => {
+    if (e.data?.type !== 'run') return
+    const { runId } = e.data
+    try {
+      const { message, transfer } = buildDone(runId, e.data.region, e.data.params)
+      ;(self as unknown as Worker).postMessage(
+        message, transfer as unknown as Transferable[],
+      )
+    } catch (err) {
+      ;(self as unknown as Worker).postMessage({
+        type: 'error',
+        runId,
+        message: err instanceof Error ? err.message : String(err),
+      } satisfies ErrorMessage)
+    }
   }
 }

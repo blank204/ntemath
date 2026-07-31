@@ -30,9 +30,13 @@ export const WEIGHT_SUM_MAX = 1
  * against risk.bin, but there is no reason to introduce the discrepancy.)
  */
 export function clampWeights(w: DriveWeights): Weights {
-  const wWeather = Math.min(Math.max(w.wWeather, 0), WEIGHT_SUM_MAX)
+  // NaN survives Math.min/Math.max, and a NaN weight makes the whole field
+  // NaN, which makes the seed unresolvable and fails the run with a message
+  // about the mask. A slider that briefly reads "" is enough to get here.
+  const finite = (v: number) => (Number.isFinite(v) ? v : 0)
+  const wWeather = Math.min(Math.max(finite(w.wWeather), 0), WEIGHT_SUM_MAX)
   const room = WEIGHT_SUM_MAX - wWeather
-  const wActivity = Math.min(Math.max(w.wActivity, 0), room)
+  const wActivity = Math.min(Math.max(finite(w.wActivity), 0), room)
   return { wWeather, wActivity, wBase: WEIGHT_SUM_MAX - wWeather - wActivity }
 }
 
@@ -97,6 +101,10 @@ export const useModelStore = create<ModelState>((set) => ({
   setRegion: (r) => set({ region: r }),
   setAvailableRegions: (r) => set({ availableRegions: r }),
   setParam: (k, v) => set((s) => ({ params: { ...s.params, [k]: v } })),
+  // Deliberately NOT routed through clampWeights: this restores an exact
+  // snapshot, and clamping would rewrite the model's literal wBase 0.2 into
+  // the derived 0.20000000000000007. Only setWeights enforces the slider
+  // invariant, because only the sliders can violate it.
   setParams: (p) => set({ params: p }),
   setWeights: (w) => set((s) => ({ params: { ...s.params, ...clampWeights(w) } })),
   setRunning: (b) => set({ running: b }),

@@ -93,7 +93,11 @@ export function MapRoot() {
           fwiNorm: r.meta.fwiNorm,
           lut: flammabilityLut(r.meta.flammability),
         })
-        setImage(await createImageBitmap(riskToImage(risk, r.mask)))
+        const bmp = await createImageBitmap(riskToImage(risk, r.mask))
+        // Re-check after the await: a run's raster may have landed while this
+        // one was decoding, and there are two writers to `image` now.
+        if (cancelled) { bmp.close(); return }
+        setImage((prev) => { prev?.close(); return bmp })
         fitRegion(r.meta.box)
       })
       .catch((err) => {
@@ -115,8 +119,11 @@ export function MapRoot() {
     if (!region || !result) return
     let cancelled = false
     createImageBitmap(riskToImage(result.risk, region.mask)).then((bmp) => {
-      if (cancelled) bmp.close()
-      else setImage(bmp)
+      if (cancelled) { bmp.close(); return }
+      // Close the outgoing bitmap. Every slider move triggers a run, and each
+      // run allocates a fresh 900x600 RGBA bitmap — leaving them to the GC
+      // leaks a couple of megabytes of off-heap memory per drag.
+      setImage((prev) => { prev?.close(); return bmp })
     })
     return () => { cancelled = true }
   }, [region, result])
