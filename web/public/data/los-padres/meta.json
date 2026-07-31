@@ -1,0 +1,39 @@
+{
+ "name": "los-padres",
+ "box": [
+  -120.3,
+  34.4,
+  -119.4,
+  35.0
+ ],
+ "nx": 900,
+ "ny": 600,
+ "widthKm": 82.36896718278675,
+ "heightKm": 66.79200000000016,
+ "forestFraction": 0.5074148148148148,
+ "fwiP90": 48.828067108847215,
+ "fwiNorm": 0.6103508388605902,
+ "firmsCount": 2,
+ "classMix": {
+  "grassland": 0.393487037037037,
+  "tree cover": 0.37265,
+  "shrubland": 0.1347648148148148,
+  "water": 0.05464444444444445,
+  "cropland": 0.02135925925925926,
+  "built-up": 0.013224074074074074,
+  "bare/sparse": 0.00975925925925926,
+  "wetland": 0.00011111111111111112
+ },
+ "seedFlatIndex": 539100,
+ "generated": "2026-07-31T02:59:28.768695+00:00",
+ "sourceNotes": {
+  "landcover": "ESA WorldCover v200, 10 m, windowed via GDAL /vsicurl",
+  "activity": "NASA FIRMS VIIRS 375 m + MODIS 1 km; RECENCY SIGNAL ONLY - the open feeds reach back days, not years",
+  "weather": "Canadian FWI from ERA5 via Open-Meteo, 180-day p90",
+  "riskFormula": "flammability(landcover) * (w_base + w_weather*FWI + w_activity*activity)",
+  "notModelled": [
+   "elevation/slope",
+   "camper traffic"
+  ]
+ }
+}
