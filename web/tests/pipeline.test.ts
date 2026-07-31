@@ -89,6 +89,16 @@ describe('runPlacement', () => {
     const bad = { ...region, meta: { ...region.meta, seedFlatIndex: region.meta.nx * region.meta.ny } }
     expect(() => runPlacement(bad, params)).toThrow(/seedFlatIndex/)
   })
+
+  it('throws a clear error instead of returning an empty network when the seed pixel is masked out', () => {
+    const region = synthetic()
+    // Block every pixel, so variablePoissonDisk's mask check fails at the
+    // seed pixel and it returns zero candidates.
+    const blockedMask = new Float32Array(region.mask.data.length).fill(0)
+    const blocked = { ...region, mask: { ...region.mask, data: blockedMask } }
+    expect(() => runPlacement(blocked, params)).toThrow(/seedFlatIndex/)
+    expect(() => runPlacement(blocked, params)).toThrow(/synthetic/)
+  })
 })
 
 describe('runPlacement on the real los-padres region', () => {
@@ -131,15 +141,15 @@ describe('runPlacement on the real los-padres region', () => {
       maxNodes: null,
     })
 
-    // eslint-disable-next-line no-console
-    console.log(
-      `los-padres: ${r.candidateCount} candidates -> ${r.nodeCount} nodes ` +
-      `at ${r.coveredFraction.toFixed(3)} coverage`,
-    )
-
-    expect(r.candidateCount).toBeGreaterThan(100)
-    expect(r.nodeCount).toBeGreaterThan(100)
-    expect(r.nodeCount).toBeLessThan(r.candidateCount)
-    expect(r.coveredFraction).toBeGreaterThanOrEqual(0.95 - 1e-9)
+    // Exact parity reference, established against a matched Python run that
+    // called place.variable_poisson_disk / greedy_minimise directly with
+    // RefRNG(7) and these same parameters on the committed los-padres
+    // rasters: 927 candidates -> 572 nodes, chosen sequence and coverage
+    // bit-identical to 15 digits. Assert exactly (toBe, not a tolerance) so
+    // a parity regression fails loudly instead of slipping past a loose
+    // bound the way the earlier (wrong) 928/561 reference did.
+    expect(r.candidateCount).toBe(927)
+    expect(r.nodeCount).toBe(572)
+    expect(r.coveredFraction).toBe(0.950127412638781)
   }, 60000)
 })

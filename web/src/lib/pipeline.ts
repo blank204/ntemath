@@ -62,6 +62,20 @@ export function runPlacement(region: RegionData, p: PlaceParams): PlaceResult {
     p.rMinKm, p.rMaxKm, region.mask, 24, 200_000, seedFlatIndex,
   )
 
+  // variablePoissonDisk returns empty when the seed pixel fails the mask
+  // check (e.g. a region whose seedFlatIndex was resolved against a
+  // different mask than the one shipped). Silently continuing would hand
+  // the site an empty network as if it were a real result — the same
+  // silent-wrong-answer failure the seedFlatIndex guard above exists to
+  // prevent, so fail loudly here too.
+  if (candidates.length === 0) {
+    throw new Error(
+      `region "${name}" produced zero placement candidates: the seed pixel ` +
+      `at meta.seedFlatIndex=${seedFlatIndex} is not allowed by the mask. ` +
+      `Re-bake the region so the seed index and mask agree.`,
+    )
+  }
+
   const demand = demandPoints(
     region.risk, region.mask, widthKm, heightKm, p.demandStride,
   )
