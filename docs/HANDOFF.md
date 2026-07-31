@@ -1,4 +1,4 @@
-# Handoff — 2026-07-31, 22:50
+# Handoff — 2026-07-31, 23:20
 
 For the next agent. Read this first, then
 `docs/superpowers/specs/2026-07-31-pyra-lightning-pivot.md`.
@@ -7,7 +7,7 @@ For the next agent. Read this first, then
 
 ## 1. Where things stand
 
-Branch `pyra-site`. **363 tests pass** (`cd web && npm test`), plus **33 Python
+Branch `pyra-site`. **393 tests pass** (`cd web && npm test`), plus **33 Python
 tests** (`python -m unittest tools.bake.test_lightning tools.bake.test_regions`).
 `npm run build` and `npx tsc -b` are clean. Nothing is half-finished in the
 working tree.
@@ -88,27 +88,31 @@ most of what varies in the drive term.
   apply and this greedy recomputes gains each round. The objective is progress
   towards k, with completion weight as a tie-break; demand that no combination
   of candidates could ever see twice is excluded rather than chased.
+- **The Rail** (`src/rail/`) — seven beats as DATA so the §2 science
+  constraints run over them, a stage that is a pure function of (beat,
+  progress), and the Lab as a section below rather than the whole page.
+  Skip-to-Lab is the first link in the header.
 - The spec's §2 science constraints are now **tests over every string the site
-  can produce** (`web/tests/copy.test.ts`).
+  can produce** (`web/tests/copy.test.ts`, `web/tests/beats.test.ts`).
 
 ---
 
 ## 3. What is left, in order
 
-1. **The Rail**, seven beats: cold-open flash · the strike and the clock · the
-   gap · the tower explodes · flash and bang · two towers · the question.
-   Flash-to-bang is built and is beat five; it currently floats in a panel over
-   the map because there is nowhere else to put it yet.
-2. **The exploding 3D tower** — camera head, microphone booms, solar, compute,
-   backhaul. **Aarav answered: build from primitives, no model exists.**
-3. **Localisation error in metres.** The other half of what two towers buy, and
-   the honest version needs a stated range-error assumption (GDOP ≈ σ/sin θ).
-   `docs/lightning-research.md` says the widely-quoted "~10% thunder distance
-   error" is **unverified as a formal measurement** — the one defensible number
-   is the ~6% systematic from assuming warm-air sound speed. Label whatever is
-   chosen as an assumption, in `/assumptions`.
-4. **Presenter mode and skip-to-Lab**, then **`/assumptions`**.
-5. Optional: re-bake Los Padres onto the lightning layer, or drop it from the
+1. **The exploding 3D tower** — camera head, microphone booms, solar, compute,
+   backhaul. **Aarav answered: no model exists, build from primitives — and he
+   expects something exceptional, and is happy for an agent to go online and
+   look for a 3D model that fits.** Beat four of the Rail currently holds an
+   exploded SVG schematic in its place, which is honest but is not that.
+2. **Localisation error in metres** (GDOP ≈ σ/sin θ). **Aarav chose the
+   assumption: 6%, the defensible one** — the systematic error from assuming
+   warm-air sound speed, whose derivation can be shown. NOT the widely-quoted
+   ~10%, which `docs/lightning-research.md` records as unverified as a formal
+   measurement. It goes on screen labelled an assumption, and into
+   `/assumptions`.
+3. **Presenter mode**, then **`/assumptions`**. (Skip-to-Lab is built — it is
+   the first link in the Rail's header.)
+4. Optional: re-bake Los Padres onto the lightning layer, or drop it from the
    picker. It is currently the only region whose risk means "where fire has
    been", which is defensible — it is the parity anchor — but it is also the
    one place the site shows two different meanings under one word.
@@ -122,6 +126,12 @@ most of what varies in the drive term.
 - **Two coordinate frames exist.** `place.LocalFrame` is equirectangular km
   about the box centre; anything projected is not the same frame.
 - **Never a hex colour outside `web/src/theme/palette.ts`.** Absolute.
+- **Scroll behaviour is only ever found by scrolling.** Two Rail bugs shipped
+  past a green suite: the active beat was anchored on the section's top edge
+  (the text is centred, so the stage sat a beat behind), and the scroll handler
+  used a "skip if a frame is pending" flag that wedges permanently when a frame
+  is dropped — which happens under a devtools screenshot. Cancel and
+  reschedule; never gate on a pending flag.
 - **Every test must be able to fail.** Today the flash-to-bang clock printed
   `7.49 s × 340.4 m/s = 2.00 km` — false arithmetic, on screen, past a green
   suite. It was caught by looking at it in a browser. Look at things.
