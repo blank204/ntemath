@@ -204,6 +204,36 @@ def frame_fixture() -> None:
     _write("frame.json", {"cases": cases})
 
 
+def _resolve_seed_flat_index(risk, mask) -> int:
+    """Exactly mirrors the seed-selection loop inside
+    place.variable_poisson_disk -- same `np.argsort(risk, axis=None)[::-1]`
+    call over the same array, same `allowed()` mask threshold -- so the
+    fixture can hand the TS port the flat index place.py's *real* internal
+    loop actually lands on, instead of depending on argsort's undocumented,
+    unstable tie-break order to agree with a second implementation.
+
+    place.py is not touched: this duplicates its seed loop with the same
+    numpy primitives over the same data, so whatever numpy's argsort does
+    with ties is captured verbatim rather than approximated.
+    """
+    import numpy as np
+
+    ny, nx = risk.shape
+    order = np.argsort(risk, axis=None)[::-1]
+    for flat in order[: max(1, risk.size // 4)]:
+        jj, ii = np.unravel_index(flat, risk.shape)
+        if mask is None:
+            return int(flat)
+        u = (ii + 0.5) / nx
+        v = (jj + 0.5) / ny
+        mny, mnx = mask.shape
+        j = min(max(int(v * (mny - 1)), 0), mny - 1)
+        i = min(max(int(u * (mnx - 1)), 0), mnx - 1)
+        if bool(mask[j, i]):
+            return int(flat)
+    raise RuntimeError("no allowed seed pixel found while resolving seed_flat_index")
+
+
 def poisson_fixture() -> None:
     import numpy as np
 
@@ -211,52 +241,79 @@ def poisson_fixture() -> None:
     variable_poisson_disk = place.variable_poisson_disk
 
     cases = []
-    for tag, ny, nx, seed, rmin, rmax in [
-        ("smooth", 32, 32, 3, 1.0, 4.0),
-        ("peaked", 24, 40, 11, 0.8, 6.0),
+    for tag, ny, nx, seed, rmin, rmax, mask_kind in [
+        ("smooth", 32, 32, 3, 1.0, 4.0, None),
+        ("peaked", 24, 40, 11, 0.8, 6.0, None),
+        ("plateau", 40, 40, 21, 1.0, 4.0, None),
+        ("masked", 32, 32, 13, 1.0, 4.0, "exclude_top_bottom_rows"),
     ]:
-        # A deterministic, non-trivial risk field -- no RNG, so both sides agree.
         yy, xx = np.mgrid[0:ny, 0:nx]
         u = xx / (nx - 1)
         v = yy / (ny - 1)
-        risk = (0.5 + 0.5 * np.sin(3 * np.pi * u) * np.cos(2 * np.pi * v))
-        if tag == "peaked":
-            risk = risk ** 3
 
-        # This grid's sin/cos symmetry produces exact float64 ties among the
-        # very highest values (e.g. for the 32x32 "smooth" case, (ii=26,jj=31)
-        # and (ii=5,jj=0) land on bit-identical risk). place.py's internal
-        # `np.argsort(...)[::-1]` breaks such ties via quicksort's unstable,
-        # undocumented internal order -- not the total order (-risk, flatIndex)
-        # the TS port uses (see poisson.ts). Reproducing numpy's specific
-        # quicksort tie order in TS would mean depending on an implementation
-        # detail numpy itself does not guarantee across versions, so instead
-        # the fixture is built to have an unambiguous single maximum: a tiny
-        # monotonic-in-flat-index multiplier that only ever shrinks risk (so
-        # it can never push a value past the 1.0 clip boundary and create a
-        # *new* tie there), sized well above float32 rounding noise so the
-        # winning pixel stays the same after the risk array is snapped to
-        # float32 below.
-        flat_idx = (yy * nx + xx).astype(np.float64)
-        risk = risk * (1.0 - 1e-3 * flat_idx / flat_idx.max())
-        risk = np.clip(risk, 0.0, 1.0)
+        if tag == "plateau":
+            # Mirrors the real pipeline, not just a synthetic edge case:
+            # hazard.activity_field returns an all-zero array whenever a box
+            # has no FIRMS detections above confidence 40 -- routine, since
+            # the open feed only spans 7 days. With activity zero,
+            # plan.risk_field's `drive` term collapses to a scalar constant,
+            # so every burnable (TREE/SHRUB, flammability 1.00) pixel ties at
+            # risk == 1.0. Reproduced directly here as a fully uniform field
+            # -- confirmed (not assumed) that on this exact array, numpy's
+            # argsort()[::-1] picks the *last* flat index (1599 for a 40x40
+            # grid) as its rank-0 candidate, not the lowest-flat-index pixel
+            # a naive total-order fallback would pick -- so this case is a
+            # genuine regression test for the explicit-seed fix, not one
+            # that happens to agree with the fallback by coincidence.
+            risk = np.full((ny, nx), 1.0)
+        else:
+            risk = 0.5 + 0.5 * np.sin(3 * np.pi * u) * np.cos(2 * np.pi * v)
+            if tag == "peaked":
+                risk = risk ** 3
+            risk = np.clip(risk, 0.0, 1.0)
+            # NOTE: this grid's sin/cos symmetry produces exact float64 ties
+            # among the very highest values on purpose -- that is the shape
+            # real risk fields take (see the "plateau" case above), so the
+            # fixture is left carrying genuine ties rather than perturbed
+            # away from them. The seed pixel is resolved explicitly below
+            # instead of relying on a second sort implementation to agree
+            # with numpy's unstable tie-break.
 
-        # web/src/lib/types.ts stores Field.risk as Float32Array. Snap here so
-        # place.py computes on the exact values the TS port will read back --
-        # otherwise every radius and candidate position drifts by the
-        # float64-vs-float32 rounding gap, and that drift compounds across
-        # the active-list chain as points get placed.
+        # web/src/lib/types.ts stores Field.data as Float32Array. Snap here
+        # so place.py computes on the exact values the TS port will read
+        # back -- otherwise every radius and candidate position drifts by
+        # the float64-vs-float32 rounding gap, and that drift compounds
+        # across the active-list chain as points get placed. Confirmed as
+        # the standing rule for fixtures that feed a Field: the reference
+        # must compute on the exact values the consumer will hold.
         risk = risk.astype(np.float32).astype(np.float64)
+
+        mask = None
+        if mask_kind == "exclude_top_bottom_rows":
+            # A non-trivial mask, verified (not assumed) to exclude the
+            # argsort-descending rank-0 candidate (row v=0, where
+            # cos(2*pi*v)=1 hits the field's maximum) so the seed loop's
+            # t > 0 allowed-pixel scan actually executes -- that path is
+            # otherwise dead code under test, since mask=None always accepts
+            # the first candidate. Also exercises the real pipeline shape:
+            # mask=burn is always passed, never None.
+            mask = np.ones((ny, nx), dtype=bool)
+            mask[0, :] = False
+            mask[-1, :] = False
+
+        seed_flat_index = _resolve_seed_flat_index(risk, mask)
 
         pts = variable_poisson_disk(
             RefRNG(seed), risk, width_km=40.0, height_km=30.0,
-            r_min_km=rmin, r_max_km=rmax, mask=None, k=24,
+            r_min_km=rmin, r_max_km=rmax, mask=mask, k=24,
         )
         cases.append({
             "tag": tag, "ny": ny, "nx": nx, "seed": seed,
             "r_min_km": rmin, "r_max_km": rmax,
             "width_km": 40.0, "height_km": 30.0,
             "risk": [float(x) for x in risk.ravel()],
+            "mask": ([bool(x) for x in mask.ravel()] if mask is not None else None),
+            "seed_flat_index": seed_flat_index,
             "points": [[float(p[0]), float(p[1])] for p in pts],
         })
     _write("poisson.json", {"cases": cases})

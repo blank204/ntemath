@@ -9,6 +9,23 @@ import { radiusAt, allowedAt } from './field'
  * is the right family and why the acceptance test uses max(r(p), r(q)).
  *
  * Returns a flat [x0,y0,x1,y1,...] array of km coordinates.
+ *
+ * `seedFlatIndex`, when supplied, skips the argsort scan and seeds directly
+ * at that flat risk-grid index (still subject to the mask check; if that
+ * pixel isn't allowed, the whole call returns empty rather than falling
+ * back to a scan). Real risk fields routinely have huge plateaus of
+ * bit-identical maximum risk -- e.g. whenever a region has no recent FIRMS
+ * detections, the hazard model's activity term goes to zero and every
+ * burnable pixel ties at risk == 1.0 -- so which tied pixel numpy's
+ * unstable `argsort(...)[::-1]` happens to land on in place.py is an
+ * implementation detail of quicksort's partitioning, not a total order a
+ * second sort implementation can be expected to reproduce. Callers that
+ * need byte-identical parity with a specific Python run should resolve the
+ * seed index there (see tools/bake/export_fixtures.py's
+ * `_resolve_seed_flat_index`) and pass it in explicitly. Omitting it keeps
+ * the total-order `(-risk, flatIndex)` scan below as a documented,
+ * self-consistent fallback -- deterministic within this port, but not
+ * guaranteed to agree with a given `place.py` run when ties exist.
  */
 export function variablePoissonDisk(
   rng: RefRNG,
@@ -20,6 +37,7 @@ export function variablePoissonDisk(
   mask: Field | null = null,
   k = 24,
   maxPoints = 200_000,
+  seedFlatIndex?: number,
 ): Float64Array {
   if (rMinKm <= 0 || rMaxKm < rMinKm) {
     throw new Error('need 0 < rMinKm <= rMaxKm')
@@ -59,20 +77,31 @@ export function variablePoissonDisk(
   }
 
   // Seed on the highest-risk allowed pixel so growth starts where it matters.
-  // Sort key is (-risk, flatIndex): a total order, so both languages agree
-  // regardless of their sort stability.
-  const order = Array.from({ length: r.length }, (_, i) => i)
-  order.sort((a, b) => (r[b] - r[a]) || (a - b))
-
   let seeded = false
-  const scan = Math.max(1, Math.floor(r.length / 4))
-  for (let t = 0; t < scan; t++) {
-    const flat = order[t]
+
+  const trySeedAt = (flat: number): boolean => {
     const jj = Math.floor(flat / riskC.nx)
     const ii = flat % riskC.nx
     const x = ((ii + 0.5) / riskC.nx) * widthKm
     const y = ((jj + 0.5) / riskC.ny) * heightKm
-    if (ok(x, y)) { insert(x, y, rad(x, y)); seeded = true; break }
+    if (ok(x, y)) { insert(x, y, rad(x, y)); return true }
+    return false
+  }
+
+  if (seedFlatIndex !== undefined) {
+    // Explicit seed: skip the scan (and its O(n log n) sort) entirely. Still
+    // subject to the mask check; an unallowed seed pixel means no points.
+    seeded = trySeedAt(seedFlatIndex)
+  } else {
+    // Fallback: total order on (-risk, flatIndex), so this scan is at least
+    // self-consistent — see the seedFlatIndex doc comment above for why this
+    // won't always agree with a given place.py run when ties exist.
+    const order = Array.from({ length: r.length }, (_, i) => i)
+    order.sort((a, b) => (r[b] - r[a]) || (a - b))
+    const scan = Math.max(1, Math.floor(r.length / 4))
+    for (let t = 0; t < scan; t++) {
+      if (trySeedAt(order[t])) { seeded = true; break }
+    }
   }
   if (!seeded) return new Float64Array(0)
 
