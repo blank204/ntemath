@@ -40,14 +40,28 @@ describe('variablePoissonDisk reproduces the Python exactly', () => {
       const out = run(c)
       const risk = riskFieldOf(c)
       const n = out.length / 2
+      // The plateau case holds 764 points, so this is ~291k pairs. Calling
+      // expect() per pair costs seconds and buys nothing: collect the
+      // violations and assert once, reporting the worst offender rather than
+      // just the first. A per-pair expect() pushed this test past the 5s
+      // timeout on a slower machine while the algorithm was perfectly fine.
+      const radii = new Float64Array(n)
+      for (let i = 0; i < n; i++) {
+        radii[i] = radiusAt(risk, out[2 * i], out[2 * i + 1], c.width_km, c.height_km, c.r_min_km, c.r_max_km)
+      }
+      let violations = 0
+      let worst: { a: number; b: number; d: number; need: number } | null = null
       for (let a = 0; a < n; a++) {
-        const ra = radiusAt(risk, out[2 * a], out[2 * a + 1], c.width_km, c.height_km, c.r_min_km, c.r_max_km)
         for (let b = a + 1; b < n; b++) {
-          const rb = radiusAt(risk, out[2 * b], out[2 * b + 1], c.width_km, c.height_km, c.r_min_km, c.r_max_km)
+          const need = Math.max(radii[a], radii[b])
           const d = Math.hypot(out[2 * a] - out[2 * b], out[2 * a + 1] - out[2 * b + 1])
-          expect(d).toBeGreaterThan(Math.max(ra, rb) - 1e-9)
+          if (!(d > need - 1e-9)) {
+            violations++
+            if (worst === null || need - d > worst.need - worst.d) worst = { a, b, d, need }
+          }
         }
       }
+      expect({ violations, worst }).toEqual({ violations: 0, worst: null })
     })
   }
 })
