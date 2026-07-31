@@ -35,6 +35,9 @@
 - **Dataviz rules, binding:** never a dual axis; a legend whenever there are two or more series; colour by job, never by rank; a hover layer on every plotted mark; a table view for every chart; label selectively. Per the spec, the 100-run comparison is **two dot strips with median markers**, one row per strategy, medians directly labelled — not a histogram, not a box plot, not a bar chart.
 - **Honesty rules:** every detection-time number states the spread rule it was produced by, the detection radius, and the number of ignitions. Every censored run (fire never seen) is reported as censored, never as a large number and never dropped. Nothing anywhere implies the fire model is validated outside California.
 - **Los Padres only.** On the other seven regions Benchmark B renders an explicit absence with the reason, and the Lab keeps working. This is a Global Constraint, not a Task 11 detail.
+- **Benchmark B is a constrained-budget result, and says so everywhere.** It is measured at `BENCHMARK_B_BUDGET = 132` requested nodes (124 realised), the budget at which Benchmark A's measured curve shows the risk-driven arm's widest lead. It is **never** reported at the saturation budget: measured, every ignition detects at minute zero there under both spread rules, because 572 nodes at a 2 km radius blanket the region (see `docs/fire-model-choice.md`). Every displayed detection number states the node count alongside the rule and the radius — this measurement is the proof that a detection time without its node count is not a result.
+- **The spread rule is `spread.simulate_ros`, chosen by measurement in Task 2.** It is deterministic — no RNG in the spread path — so Benchmark B inherits the reproducibility guarantee the rest of the site rests on. Do not substitute `fire.simulate` without re-running `tools/bake/spread_probe.py` and rewriting `docs/fire-model-choice.md`. Note the two rules take **different parameter dicts**: `fire.PARAMS` carries `p0`/`c1`/`c2`, `spread.PARAMS_ROS` carries `ros0_m_min`/`wind_gain`/`lb_cap`, and handing one the other's raises `KeyError`.
+- **`calibrate.reference_d_ref()` cannot be called.** It builds a mesh internally without `clip_guard=False`. Reproduce its public building blocks directly with the flag set, as `tools/bake/spread_probe.py` does.
 - **The regression bar:** 269 tests pass today. Every task ends with `cd web && npm test` green and `cd web && npm run build` succeeding. Node.js ≥ 20, Python ≥ 3.11.
 - **Out of scope, by design:** the Rail (Plan 4), the rod and the fusion truth table (Plan 5), the camper app (Plan 5), `/assumptions` (Plan 5). Benchmark A must keep working unchanged throughout; nothing in this plan may make it conditional on fire data existing.
 
@@ -74,6 +77,64 @@ At 86 m/min a fire reaches 10 km in two hours, so with a 2 km detection radius e
 The planner's nodes live in `place.LocalFrame`, an equirectangular km frame about the box centre (`place.py:53-74`). The fire Domain lives in **UTM metres** with the south-west corner at the origin (`realdata.py:32-33`). Over an 82 km box these differ by a real distance, and a benchmark that mixes them would report detection times for nodes that are not where it thinks they are. Worse, `NodePlan.nodes_lonlat` is offset half a bounding box by the `plan_region` bug (`docs/repo-issues.md §1.5`) and must never be round-tripped through. **Task 4 fixes one coordinate space — lon/lat — converts into it once explicitly, and a test asserts a known node lands where it should.**
 
 **Also measured, and worth stating:** `fire.pick_seed_cell` snaps an ignition to the nearest *burnable* generator (`fire.py:124-131`) without reporting how far it moved. Over a region with water, rock and roads, some of 100 scattered ignitions will silently relocate — possibly kilometres. Task 3 records the displacement per ignition and Task 11 surfaces the worst one.
+
+---
+
+## Revision 1 (after Task 2's measurement) — Benchmark B is a *constrained-budget* result
+
+Task 2 ran and triggered this plan's own escalation clause. The full
+measurement is in `docs/fire-model-choice.md`; the finding that changes the
+plan is this:
+
+**At 572 nodes — the Lab's default saturation budget — every ignition is
+detected at minute zero, under both spread rules.** 572 nodes each watching a
+2 km radius cover ~7,200 km² against a 5,800 km² box, so a node is always
+within 2 km of wherever the fire starts, and the ignition cell's own arrival
+time is 0. Detection is instantaneous by construction, for any placement.
+Benchmark B as originally specified would have reported "0 minutes versus 0
+minutes" regardless of rule, placement or fire model.
+
+Measured detection spread (P90 − P10 over five ignitions, 2 km radius):
+
+| nodes placed | Bernoulli | ROS |
+|---:|---:|---:|
+| 20 | 0.0 (4/5 censored) | n/a (5/5 censored) |
+| 99 | **43.6 min** | **38.4 min** |
+| 572 | 0.0 | 0.0 |
+
+The discriminating band is roughly 50–200 nodes.
+
+**The reframe, decided by the user.** Benchmark B is not a saturation result
+and never claims to be. It reports detection time at a **stated constrained
+budget**, which is the regime where Benchmark A already shows risk-driven
+siting winning — so the two benchmarks become one finding in two units
+(percentage points of coverage, and minutes to detection) rather than two
+disconnected claims.
+
+**The budget: 132 requested / 124 realised.** Not chosen for this benchmark —
+it is the budget at which Benchmark A's measured curve shows the risk-driven
+arm's widest lead (+3.55 pp, `web/src/lib/benchmark.ts`). Using the same budget
+for both benchmarks is what makes them the same experiment. The realised count
+follows from `capToCommonCount` exactly as in Benchmark A.
+
+**The rule: `spread.simulate_ros`.** Deterministic (no RNG in the spread path
+at all), more selective at the discriminating budget (censors 2 of 5 where
+Bernoulli censors none), and its scars are 0.4–0.7 km² against Bernoulli's
+27–30 km² in the same two hours — the directionality dilution the team records
+in `docs/repo-issues.md` §3.
+
+**What this changes, task by task.** Everything else in this plan stands.
+
+- **Task 2 — COMPLETE.** Committed `d9a8046`. Do not re-run it.
+- **Global Constraints** — gain the constrained-budget rule below.
+- **Task 7** — `runBenchmarkB` takes an explicit `budgetNodes` and truncates
+  the risk-driven arm to that prefix before capping, instead of using the
+  whole placement.
+- **Task 10** — every detection sentence states the budget it was measured at,
+  in the same breath as the rule and the radius. A detection time without its
+  node count is not a result; this measurement is the proof of that.
+- **Task 11** — the panel labels the benchmark as a constrained-budget result
+  on screen, and says why that budget.
 
 ---
 
@@ -312,7 +373,13 @@ EOF
 
 ---
 
-### Task 2: Choose the spread rule, and write down why
+### Task 2: Choose the spread rule, and write down why — ✅ COMPLETE (`d9a8046`)
+
+> **Do not re-run this task.** It ran, triggered the escalation clause, and its
+> finding reshaped the plan — see Revision 1 above and
+> `docs/fire-model-choice.md`. Rule selected: `spread.simulate_ros`. The steps
+> below are kept as the record of what was done.
+
 
 **Files:**
 - Create: `tools/bake/spread_probe.py`
@@ -1464,7 +1531,22 @@ EOF
   - `interface ArmResult { key: 'pyra' | 'uniform'; label: string; detections: DetectionResult[]; detected: number[]; censored: number; medianMinutes: number | null; p10: number | null; p90: number | null; scoredNodes: number }`
   - `interface BenchmarkBResult { arms: ArmResult[]; ignitions: number; detectKm: number; rule: string; tEndMin: number; deltaMedianMinutes: number | null; bothCensored: number }`
   - `function median(xs: number[]): number | null`
-  - `function runBenchmarkB(args: { set: ArrivalSet; nodesKm: Float64Array; widthKm: number; heightKm: number; mask: Field; detectKm: number }): BenchmarkBResult`
+  - `const BENCHMARK_B_BUDGET = 132`
+  - `function runBenchmarkB(args: { set: ArrivalSet; nodesKm: Float64Array; widthKm: number; heightKm: number; mask: Field; detectKm: number; budgetNodes?: number }): BenchmarkBResult`
+  - `BenchmarkBResult` additionally carries `budgetRequested: number` and `budgetRealised: number`
+
+**The constrained budget — read Revision 1 before implementing this.** `nodesKm` arrives as the whole placement (572 nodes at the default). `runBenchmarkB` must truncate it to the first `budgetNodes` pairs **before** building the grid arm and capping:
+
+```ts
+const requested = Math.min(budgetNodes ?? BENCHMARK_B_BUDGET, nodesKm.length / 2)
+// The first N of a greedy set-cover selection ARE the N-node solution --
+// the same prefix property Benchmark A's sweep rides on.
+const pyraPrefix = nodesKm.slice(0, 2 * requested)
+const gridArm = uniformGrid(widthKm, heightKm, requested, mask)
+const [pyraNodes, gridNodes] = capToCommonCount(pyraPrefix, gridArm)
+```
+
+Reporting at the full placement instead would produce zero for every ignition under any placement — that is measured, not hypothetical. A test must pin it: run at the saturation count and assert every detection is 0, so the degeneracy is documented in the suite rather than rediscovered.
 
 **Fairness, identical to Benchmark A.** Both arms are capped to the same realised node count with `capToCommonCount`, and both are fed **the same 100 ignitions**. If the two arms saw different fires the benchmark would be measuring the fires. `ArmResult.scoredNodes` reports what was actually scored, and the copy says "capped to the same realised count", never "identical node count".
 
@@ -2114,7 +2196,9 @@ EOF
 
 **What each must say, and the tests that force it.**
 
-`detectionSentence` names the arm that is actually faster — including when it is the grid — reports both medians and the delta, states the **number of ignitions**, the **detection radius**, and the **spread rule by name**. The test asserts a flipped result produces the other arm's name, so an implementation that always announces a Pyra win fails.
+`detectionSentence` names the arm that is actually faster — including when it is the grid — reports both medians and the delta, states the **number of ignitions**, the **detection radius**, the **spread rule by name**, and the **node budget it was measured at**. The test asserts a flipped result produces the other arm's name, so an implementation that always announces a Pyra win fails. A second test asserts the budget appears in the string: `docs/fire-model-choice.md` is the proof that a detection time without its node count is not a result, and the copy layer is where that lesson has to land.
+
+`budgetCaveat` (new, alongside the others) explains in one sentence why the benchmark is reported at a constrained budget rather than at the network the Lab places by default: at saturation the region is blanketed and every fire is seen instantly, so the comparison would be vacuous. The test asserts it names both the constrained budget and the saturation count, so the reader can see the choice rather than take it on trust.
 
 `censoringSentence` returns `null` only when neither arm censored anything. Otherwise it names both counts, and when they differ it says plainly that the two medians are taken over different numbers of runs and are therefore not directly comparable.
 
