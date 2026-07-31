@@ -14,6 +14,7 @@
  "fwiP90": 48.828067108847215,
  "fwiNorm": 0.6103508388605902,
  "firmsCount": 2,
+ "firmsPadDeg": 0.25,
  "classMix": {
   "grassland": 0.393487037037037,
   "tree cover": 0.37265,
@@ -25,12 +26,12 @@
   "wetland": 0.00011111111111111112
  },
  "seedFlatIndex": 539100,
- "generated": "2026-07-31T02:59:28.768695+00:00",
+ "generated": "2026-07-31T03:12:52.113007+00:00",
  "sourceNotes": {
   "landcover": "ESA WorldCover v200, 10 m, windowed via GDAL /vsicurl",
-  "activity": "NASA FIRMS VIIRS 375 m + MODIS 1 km; RECENCY SIGNAL ONLY - the open feeds reach back days, not years",
+  "activity": "NASA FIRMS VIIRS 375 m + MODIS 1 km; RECENCY SIGNAL ONLY - the open feeds reach back days, not years. firmsCount is detections within firmsPadDeg (0.25 deg) of the box, not strictly inside it -- that padded set is what activity_field's Gaussian kernel actually integrates over. The resulting activity field is normalised to its own peak within the box, so activity == 1.0 marks the most-active pixel in this region, not an absolute detection density.",
   "weather": "Canadian FWI from ERA5 via Open-Meteo, 180-day p90",
-  "riskFormula": "flammability(landcover) * (w_base + w_weather*FWI + w_activity*activity)",
+  "riskFormula": "flammability(landcover) * (0.20 + 0.45*fwiNorm + 0.35*activity), then divided by its own maximum so the field's peak is exactly 1.0 within this region. Risk values are therefore relative to this region only, NOT comparable across regions -- a 1.0 here and a 1.0 elsewhere do not mean the same absolute danger.",
   "notModelled": [
    "elevation/slope",
    "camper traffic"
