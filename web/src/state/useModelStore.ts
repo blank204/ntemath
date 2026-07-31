@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { RegionData } from '../lib/loadRegion'
 import type { PlaceParams, PlaceResult } from '../lib/pipeline'
+import { DEFAULT_WEIGHTS } from '../lib/risk'
 
 interface ModelState {
   regionName: string
@@ -22,6 +23,9 @@ interface ModelState {
  * UI defaults. rMinKm/rMaxKm reproduce plan.py:207-208's saturation-regime
  * derivation verbatim (detectKm * 0.55 and detectKm * 1.30). maxNodes is
  * null, i.e. saturation: node count is whatever the coverage target requires.
+ *
+ * The drive weights are spread from risk.ts's DEFAULT_WEIGHTS, which carries
+ * plan.risk_field's own literal parameter defaults — never restated here.
  */
 export const DEFAULT_PARAMS: PlaceParams = {
   seed: 7,
@@ -31,6 +35,7 @@ export const DEFAULT_PARAMS: PlaceParams = {
   target: 0.95,
   demandStride: 4,
   maxNodes: null,
+  ...DEFAULT_WEIGHTS,
 }
 
 /** Keep spacing tied to the detection radius exactly as plan_region does. */

@@ -4,6 +4,7 @@ import { MapboxOverlay } from '@deck.gl/mapbox'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useModelStore } from '../state/useModelStore'
 import { loadRegion } from '../lib/loadRegion'
+import { recombineRisk, flammabilityLut } from '../lib/risk'
 import { riskToImage, riskLayer, nodesLayer } from './layers'
 import { fitWhenStyleReady, type CameraTarget } from './camera'
 import { PALETTE } from '../theme/palette'
@@ -82,7 +83,17 @@ export function MapRoot() {
       .then(async (r) => {
         if (cancelled) return
         setRegion(r)
-        setImage(await createImageBitmap(riskToImage(r.risk, r.mask)))
+        // The region carries components, not a risk raster, so the backdrop
+        // has to be recombined. This one is at the model's default weights:
+        // it is the field on load, before any run has happened. Once a run
+        // returns, `result.risk` is the field that was actually placed on.
+        const { risk } = recombineRisk({
+          classes: r.classes,
+          activity: r.activity,
+          fwiNorm: r.meta.fwiNorm,
+          lut: flammabilityLut(r.meta.flammability),
+        })
+        setImage(await createImageBitmap(riskToImage(risk, r.mask)))
         fitRegion(r.meta.box)
       })
       .catch((err) => {

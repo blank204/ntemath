@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { DEFAULT_WEIGHTS } from '../src/lib/risk'
 
 /**
  * vite.config.ts sets `environment: 'node'`, where `ImageData` does not
@@ -42,13 +43,13 @@ const dataDir = join(__dirname, '..', 'public', 'data', 'los-padres')
 
 function realFetch() {
   const meta = JSON.parse(readFileSync(join(dataDir, 'meta.json'), 'utf-8'))
-  const riskBuf = readFileSync(join(dataDir, 'risk.bin'))
-  const maskBuf = readFileSync(join(dataDir, 'mask.bin'))
+  const classBuf = readFileSync(join(dataDir, 'classes.bin'))
+  const actBuf = readFileSync(join(dataDir, 'activity.bin'))
   const slice = (b: Buffer) => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength)
   return (async (url: string) => {
     if (url.endsWith('meta.json')) return { ok: true, json: async () => meta } as never
-    if (url.endsWith('risk.bin')) return { ok: true, arrayBuffer: async () => slice(riskBuf) } as never
-    if (url.endsWith('mask.bin')) return { ok: true, arrayBuffer: async () => slice(maskBuf) } as never
+    if (url.endsWith('classes.bin')) return { ok: true, arrayBuffer: async () => slice(classBuf) } as never
+    if (url.endsWith('activity.bin')) return { ok: true, arrayBuffer: async () => slice(actBuf) } as never
     return { ok: false, status: 404 } as never
   }) as unknown as typeof fetch
 }
@@ -107,6 +108,7 @@ describe('nodesLayer coordinate conversion', () => {
     const r = runPlacement(region, {
       seed: 7, detectKm: 2.0, rMinKm: 2.0 * 0.55, rMaxKm: 2.0 * 1.3,
       target: 0.95, demandStride: 4, maxNodes: null,
+      ...DEFAULT_WEIGHTS,
     })
     expect(r.nodeCount).toBe(572)
 

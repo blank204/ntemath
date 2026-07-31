@@ -7,6 +7,7 @@ import { GridIndex } from '../src/lib/gridindex'
 import { CELF_TOLERANCE, celfAcceptsRefresh, demandPoints, seenDemand } from '../src/lib/cover'
 import { loadRegion } from '../src/lib/loadRegion'
 import { runPlacement } from '../src/lib/pipeline'
+import { DEFAULT_WEIGHTS } from '../src/lib/risk'
 
 /**
  * The numerical machinery that cover.json cannot test.
@@ -27,13 +28,13 @@ const dataDir = join(__dirname, '..', 'public', 'data', 'los-padres')
 
 function realFetch() {
   const meta = JSON.parse(readFileSync(join(dataDir, 'meta.json'), 'utf-8'))
-  const riskBuf = readFileSync(join(dataDir, 'risk.bin'))
-  const maskBuf = readFileSync(join(dataDir, 'mask.bin'))
+  const classBuf = readFileSync(join(dataDir, 'classes.bin'))
+  const actBuf = readFileSync(join(dataDir, 'activity.bin'))
   const slice = (b: Buffer) => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength)
   return (async (url: string) => {
     if (url.endsWith('meta.json')) return { ok: true, json: async () => meta } as never
-    if (url.endsWith('risk.bin')) return { ok: true, arrayBuffer: async () => slice(riskBuf) } as never
-    if (url.endsWith('mask.bin')) return { ok: true, arrayBuffer: async () => slice(maskBuf) } as never
+    if (url.endsWith('classes.bin')) return { ok: true, arrayBuffer: async () => slice(classBuf) } as never
+    if (url.endsWith('activity.bin')) return { ok: true, arrayBuffer: async () => slice(actBuf) } as never
     return { ok: false, status: 404 } as never
   }) as unknown as typeof fetch
 }
@@ -132,9 +133,12 @@ describe('seenDemand hit-list ordering', () => {
     const r = runPlacement(region, {
       seed: 7, detectKm: 2.0, rMinKm: 1.1, rMaxKm: 2.6,
       target: 0.95, demandStride: 4, maxNodes: null,
+      ...DEFAULT_WEIGHTS,
     })
+    // r.risk is the field the run was actually placed on — the region carries
+    // components now, so there is no pre-combined raster to reach for.
     const d = demandPoints(
-      region.risk, region.mask, region.meta.widthKm, region.meta.heightKm, 4,
+      r.risk, region.mask, region.meta.widthKm, region.meta.heightKm, 4,
     )
     const nd = d.xy.length / 2
     const dx = new Float64Array(nd)

@@ -1,7 +1,10 @@
 import type { RegionData, RegionMeta } from './loadRegion'
+import type { Field } from './types'
 import { RefRNG } from './refrng'
 import { variablePoissonDisk } from './poisson'
 import { demandPoints, greedyMinimise } from './cover'
+import { recombineRisk, flammabilityLut, meanOverMask } from './risk'
+import { resolveSeedIndex } from './seed'
 
 export interface PlaceParams {
   seed: number
@@ -11,6 +14,15 @@ export interface PlaceParams {
   target: number
   demandStride: number
   maxNodes: number | null
+  /**
+   * The three drive weights `plan.risk_field` takes, all independent inputs.
+   * The model boundary carries what the model takes; a two-slider UI that
+   * computes `wBase` as a remainder is a presentation choice and belongs in
+   * the UI layer, not here.
+   */
+  wWeather: number
+  wActivity: number
+  wBase: number
 }
 
 export interface PlaceResult {
@@ -23,6 +35,14 @@ export interface PlaceResult {
   nodeCount: number
   /** Hardware saved by the greedy minimisation stage, as a percentage. */
   reductionPct: number
+  /** The field this run was actually placed on, recombined at `p`'s weights. */
+  risk: Field
+  /** The seed pixel resolved against `risk`, not read from meta.json. */
+  seedFlatIndex: number
+  /** How many allowed pixels tied for the maximum. 1 means numpy would agree. */
+  seedTiesAtMax: number
+  /** `risk[burnable].mean()`, the quantity plan_region feeds to auto_budget. */
+  meanRiskBurnable: number
 }
 
 /**
@@ -46,50 +66,46 @@ export function strideKm(meta: RegionMeta, demandStride: number): number {
  * nodes, which cannot reach the target on a real region and is not used here.
  */
 export function runPlacement(region: RegionData, p: PlaceParams): PlaceResult {
-  const { widthKm, heightKm, seedFlatIndex, nx, ny, name } = region.meta
+  const { widthKm, heightKm, name } = region.meta
 
-  // `RegionMeta` is decoded through a compile-time cast in loadRegion (the
-  // fetched JSON is asserted, not validated), so a stale meta.json can leave
-  // `seedFlatIndex` `undefined` at runtime even though the type claims
-  // `number`. Without it, variablePoissonDisk falls back to its own scan,
-  // which starts from a different pixel than place.py did and produces a
-  // completely different network — fail loudly instead of silently drifting.
-  const maxFlat = nx * ny
-  if (
-    seedFlatIndex === undefined ||
-    seedFlatIndex === null ||
-    !Number.isInteger(seedFlatIndex) ||
-    seedFlatIndex < 0 ||
-    seedFlatIndex >= maxFlat
-  ) {
+  // Rebuild the risk field from the baked components at the caller's weights.
+  // This is the whole point of Plan 2: the field the sampler reads is computed
+  // here, on this run, not fetched pre-combined.
+  const { risk } = recombineRisk(
+    {
+      classes: region.classes,
+      activity: region.activity,
+      fwiNorm: region.meta.fwiNorm,
+      lut: flammabilityLut(region.meta.flammability),
+    },
+    { wWeather: p.wWeather, wActivity: p.wActivity, wBase: p.wBase },
+  )
+
+  // Resolve the seed against THIS field, not the baked one — see seed.ts for
+  // why a shipped index stops being the argmax once the weights move.
+  const seed = resolveSeedIndex(risk, region.mask)
+  if (seed.index < 0) {
     throw new Error(
-      `region "${name}" has an invalid meta.seedFlatIndex (${String(seedFlatIndex)}); ` +
-      `expected an integer in [0, ${maxFlat}). Re-bake the region so placement can ` +
-      `start from the same pixel place.py did.`,
+      `region "${name}" has no burnable pixel to seed placement from; the ` +
+      'mask allows nothing.',
     )
   }
 
   const candidates = variablePoissonDisk(
-    new RefRNG(p.seed), region.risk, widthKm, heightKm,
-    p.rMinKm, p.rMaxKm, region.mask, 24, 200_000, seedFlatIndex,
+    new RefRNG(p.seed), risk, widthKm, heightKm,
+    p.rMinKm, p.rMaxKm, region.mask, 24, 200_000, seed.index,
   )
 
-  // variablePoissonDisk returns empty when the seed pixel fails the mask
-  // check (e.g. a region whose seedFlatIndex was resolved against a
-  // different mask than the one shipped). Silently continuing would hand
-  // the site an empty network as if it were a real result — the same
-  // silent-wrong-answer failure the seedFlatIndex guard above exists to
-  // prevent, so fail loudly here too.
   if (candidates.length === 0) {
     throw new Error(
-      `region "${name}" produced zero placement candidates: the seed pixel ` +
-      `at meta.seedFlatIndex=${seedFlatIndex} is not allowed by the mask. ` +
-      `Re-bake the region so the seed index and mask agree.`,
+      `region "${name}" produced zero placement candidates from seed pixel ` +
+      `${seed.index}. This should be unreachable: the seed is chosen from the ` +
+      'mask-allowed pixels.',
     )
   }
 
   const demand = demandPoints(
-    region.risk, region.mask, widthKm, heightKm, p.demandStride,
+    risk, region.mask, widthKm, heightKm, p.demandStride,
   )
 
   const cov = greedyMinimise(
@@ -116,5 +132,9 @@ export function runPlacement(region: RegionData, p: PlaceParams): PlaceResult {
     reductionPct: candidateCount > 0
       ? 100 * (1 - nodeCount / candidateCount)
       : 0,
+    risk,
+    seedFlatIndex: seed.index,
+    seedTiesAtMax: seed.tiesAtMax,
+    meanRiskBurnable: meanOverMask(risk, region.mask),
   }
 }

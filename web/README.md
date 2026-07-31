@@ -33,10 +33,15 @@ background and every model number is unchanged.
 
 ## Re-baking region data
 
-`public/data/<region>/` holds three files per region: `risk.bin` (float32,
-row-major, **row 0 at the south edge**), `mask.bin` (uint8 burnable mask) and
-`meta.json` (geometry, provenance, and the resolved placement seed index).
-They are produced from the repo-root Python model:
+`public/data/<region>/` holds five files per region, all row-major with **row 0
+at the south edge**: `classes.bin` (uint8 WorldCover class codes),
+`activity.bin` (float32 FIRMS activity), `meta.json` (geometry, provenance, the
+model's constants and the seed index the bake resolved), plus `risk.bin`
+(float32) and `mask.bin` (uint8). The app fetches only the first three and
+recombines the risk field and burnable mask itself, so the drive weights can
+move; `risk.bin` and `mask.bin` stay committed as the goldens the Node-side
+tests check that recombination against. They are produced from the repo-root
+Python model:
 
 ```bash
 cd ..                                                   # repo root
