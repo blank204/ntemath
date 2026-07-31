@@ -51,20 +51,37 @@ constraints**, in the same class as the existing honesty rules.
 - Ignition probability per cloud-to-ground strike is real and quantified —
   roughly 1 fire per 105 flashes in Montane Cordillera to 1 per 836 in Boreal
   Plains, i.e. an order of magnitude of regional variation.
-- The dominant predictor is **fuel and duff moisture**, not fuel type. Dry
-  lightning ignites 30–50 % more often than lightning with rain.
+- The dominant predictor is **fuel and duff moisture**, not fuel type.
+- **Dry lightning is over-represented in ignitions by about 2×** — it is ~20 %
+  of strikes but ~40 % of fire counts (Peterson et al. 2010). *An earlier draft
+  of this spec said "30–50 % more often per strike"; that figure is not in the
+  source and must not be used.*
 - **Holdover is real** — the interval from strike to detectable fire spans
   minutes to weeks, gamma-distributed across 152,375 recorded lightning fires.
+  **That dataset is global, across 13 countries — not Canadian.** Do not
+  attribute it to the demo region.
 - Acoustic bearing and flash-to-bang ranging are real physics, useful as a
   **local confirmation layer** out to roughly 15–20 km.
 
 **We may not claim:**
 
 - That cloud-to-ground versus cloud-to-cloud is the discriminator. **It is
-  continuing-current duration** (>40 ms, 100–200 A). A return stroke is
-  microseconds and cannot ignite fuel however large its peak current. Positive
-  polarity correlates only because ~80 % of positive strokes carry long
-  continuing current against ~10 % of negative.
+  continuing-current duration** — the >40 ms threshold is well attested; a
+  return stroke lasts microseconds and cannot ignite fuel however large its
+  peak current.
+- **Do not quote a current magnitude for continuing current.** An earlier
+  draft said "100–200 A". No primary source was found for it and secondary
+  paraphrases disagree (200–800 A, or simply "tens to hundreds of amperes").
+  Closing this needs Fuquay (1972) or Rakov & Uman (2003) read directly.
+- **Do not claim positive strokes are the igniters.** An earlier draft said
+  ~80 % of positive versus ~10 % of negative strokes carry long continuing
+  current. Unverified: the best-supported figure is ~20–50 % for negative
+  (Schultz et al. 2019), with positive only qualitatively higher. And it cuts
+  the other way in practice — in the largest dataset matching strokes to real
+  ignitions, **90 % of fire-starting strokes were negative**, because negative
+  strokes so vastly outnumber positive ones. Polarity is a weak, unquantified
+  correlate, not an 8:1 proxy. The mechanism is continuing current; polarity is
+  not a usable stand-in for it.
 - A fixed "hours before smoke" lead time. The distribution is too wide and too
   skewed. Report the distribution.
 - Novelty of the ignition science. Wotton & Martell's model has been
@@ -98,10 +115,48 @@ built.
 **Blitzortung is prohibited.** Its terms bar commercial use and redistribution
 and restrict the raw feed to network participants. Cite, never embed.
 
-**Region: Quebec Abitibi boreal, `(-78.9, 49.0, -78.0, 49.6)`.** The 2023
-lightning fires there are the ones that smoked out New York — instantly legible
-to a judge. It sits below 52 °N, so it is inside GOES-GLM coverage rather than
-in the gap above it, which matters if live strikes are ever wired in.
+**Region: James Bay coast, Quebec — `(-80.8, 51.0, -76.2, 53.2)`.** About
+314 × 244 km, ~46 × 22 native LIS/OTD cells.
+
+Sized for the towers, not the old sensors: at a 15 km detection radius a
+66 km box holds about four towers, which is neither an interesting
+optimisation nor enough lightning samples to matter. At 51–53 °N one degree of
+longitude is only ~65 km, so 300 km east–west needs ~4.5° of longitude, not the
+~3° a mercator intuition suggests.
+
+Chosen over six alternatives on four hard constraints:
+
+- **Lightning must dominate.** Rules out the Mediterranean (~5 % of fires
+  lightning-caused, >95 % human) and Indonesia (land-clearing and peat).
+- **Satellite coverage.** LIS/OTD reaches high latitudes, but the live-strike
+  upgrade path does not: GOES-GLM is Western Hemisphere only and fades in the
+  low 50s °N. That disqualifies Wood Buffalo (58–60 °N), Alaska interior
+  (66–68 °N), Siberia (60–67 °N) and Australia outright. **This box tops out at
+  53.2 °N, which is at the edge of that limit** — sources disagree between
+  ~52 °N and ~54 °N. It does not affect the shipped climatology; it is a
+  caveat on the live-strike layer only, and the northern strip is the part at
+  risk.
+- **Nobody already doing it.** Alberta's Rocky Mountain foothills have the
+  best-documented lightning gradient in the literature — and Alberta Wildfire
+  runs an operational lightning-ignition model *and* AltaML's deployed AI
+  wildfire-occurrence predictor. Going there invites the question "why do they
+  need you?" with a good answer already on the table.
+- **Remote enough that "nobody is watching" is credible.** Alberta's corridor
+  is settled with highway cell coverage. James Bay has villages only —
+  Eastmain, Wemindji, Chisasibi — in Eeyou Istchee Cree territory.
+
+It keeps every strength of the Abitibi box — same Quebec boreal system that
+produced the 2023 smoke over New York — while trading climatologically flat
+inland forest for a coast, where land–water convective contrast gives a
+physical mechanism for real spatial structure in strike density.
+
+**That gradient is a hypothesis, not a measured fact.** No literature
+quantifies it for this coast the way Alberta's foothills gradient is
+quantified. **Gate:** once the climatology is in hand, measure the strike
+density range across this box before baking. If it is flat, the lightning
+layer is decorative and the honest response is to say so in the source notes —
+not to pick a flattering region afterwards. Abitibi remains the fallback and
+loses nothing but the gradient.
 
 ---
 
