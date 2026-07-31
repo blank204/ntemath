@@ -319,7 +319,62 @@ def poisson_fixture() -> None:
     _write("poisson.json", {"cases": cases})
 
 
+def cover_fixture() -> None:
+    import numpy as np
+
+    _, place = _repo_geo_and_place()
+    coverage_of = place.coverage_of
+    demand_points = place.demand_points
+    greedy_minimise = place.greedy_minimise
+    variable_poisson_disk = place.variable_poisson_disk
+
+    ny, nx = 28, 36
+    yy, xx = np.mgrid[0:ny, 0:nx]
+    u = xx / (nx - 1)
+    v = yy / (ny - 1)
+    risk = np.clip(0.5 + 0.5 * np.sin(3 * np.pi * u) * np.cos(2 * np.pi * v), 0, 1)
+
+    # web/src/lib/types.ts stores Field.data as Float32Array, so the browser
+    # computes on float32 risk values. Snap here -- same standing rule as
+    # poisson_fixture -- so place.py's candidate placement, demand sampling,
+    # and coverage scoring all run on the exact values the TS port will read
+    # back, instead of drifting from a float64 reference.
+    risk = risk.astype(np.float32).astype(np.float64)
+    mask = risk > 0.15
+
+    w_km, h_km = 40.0, 30.0
+    # place.py's variable_poisson_disk seeds by scanning
+    # `np.argsort(risk, axis=None)[::-1]`, an unstable sort. Resolve the flat
+    # index that loop actually lands on so the fixture can hand the TS port
+    # an explicit seed rather than depending on a second sort implementation
+    # to agree with numpy's tie-break order (see _resolve_seed_flat_index).
+    seed_flat_index = _resolve_seed_flat_index(risk, mask)
+
+    cand = variable_poisson_disk(RefRNG(5), risk, w_km, h_km, 1.0, 5.0,
+                                 mask=mask, k=24)
+    dxy, dw = demand_points(risk, mask, w_km, h_km, stride=2)
+    cov = greedy_minimise(cand, dxy, dw, radius_km=2.0, target=0.95)
+    full_w, full_a = coverage_of(cand, dxy, dw, radius_km=2.0)
+
+    _write("cover.json", {
+        "ny": ny, "nx": nx, "width_km": w_km, "height_km": h_km,
+        "stride": 2, "radius_km": 2.0, "target": 0.95, "seed": 5,
+        "r_min_km": 1.0, "r_max_km": 5.0,
+        "seed_flat_index": seed_flat_index,
+        "risk": [float(x) for x in risk.ravel()],
+        "mask": [bool(x) for x in mask.ravel()],
+        "candidates": [[float(p[0]), float(p[1])] for p in cand],
+        "demand_xy": [[float(p[0]), float(p[1])] for p in dxy],
+        "demand_w": [float(x) for x in dw],
+        "chosen": [int(i) for i in cov.chosen],
+        "covered_fraction": float(cov.covered_fraction),
+        "area_fraction": float(cov.area_fraction),
+        "full_pool_coverage": [float(full_w), float(full_a)],
+    })
+
+
 if __name__ == "__main__":
     refrng_fixture()
     frame_fixture()
     poisson_fixture()
+    cover_fixture()
