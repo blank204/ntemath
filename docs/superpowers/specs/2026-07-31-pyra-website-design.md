@@ -184,7 +184,16 @@ Controls are the model's **actual** parameters, not the ones in the original pit
 ### The benchmark
 A single ignition producing "4 min vs 19 min" is an anecdote, and any judge with a science background will ask whether the click was lucky.
 
-**Primary result: `Run 100 ignitions`.** The same 100 ignition points — drawn from real FIRMS historical detections for that region — are fed to both strategies and rendered as **two dot strips with median markers**, one row per strategy. A distribution, not a story. Runs in a worker with results streaming in progressively — the page never freezes.
+**Primary result: `Run 100 ignitions`.** The same 100 ignition points are fed to both strategies and rendered as **two dot strips with median markers**, one row per strategy. A distribution, not a story. Runs in a worker with results streaming in progressively — the page never freezes.
+
+**Scope limit, forced by the geography constraint above.** Detection time requires simulating a fire until a node sees it, and the fire model is California-only. So:
+
+| Result | Regions | Basis |
+|---|---|---|
+| **Detection-time benchmark** | **Los Padres only** | The team's own fire model, validated against two real California fires |
+| **Placement results** — coverage, node count, set-cover reduction | **All eight** | The siting model alone, which is genuinely global |
+
+The Lab must make this visible rather than quietly degrading: on a non-Californian region the detection benchmark is absent with a stated reason, not silently missing. Presenting a detection time computed by an unvalidated fire model outside its domain would be exactly the kind of overclaim the honesty layer exists to prevent.
 
 **A second comparison the code already computes for free:** blue noise alone versus blue noise + greedy set cover. On Los Padres that's **927 → 572 nodes** for the same 95% coverage — a **38% hardware saving** from the minimisation stage alone, verified bit-identical between the Python and the browser. That is a clean, quantified engineering result and it should be surfaced as its own stat tile.
 
