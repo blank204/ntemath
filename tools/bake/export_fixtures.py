@@ -6,6 +6,7 @@ Run from the repo root:  python -m tools.bake.export_fixtures
 from __future__ import annotations
 
 import importlib
+import importlib.util
 import json
 import os
 import sys
@@ -18,14 +19,41 @@ OUT = os.path.abspath(os.path.join(HERE, "..", "..", "web", "tests", "fixtures")
 # The repo root (this checkout: "Pyra NTE", not the README's "ntemath") is a
 # Python package -- it has its own __init__.py, and place.py imports geo.py
 # via a relative `from .geo import ...`. That relative import only resolves
-# if place.py is loaded *as a submodule of that package*, so we put the
-# repo root's parent on sys.path and import geo/place through the package by
-# its actual on-disk name (via importlib, since that name contains a space
-# and isn't a valid `import a.b` identifier) rather than the literal
-# "ntemath" the brief assumed. This never touches geo.py or place.py.
+# if place.py is loaded *as a submodule of that package*.
+#
+# We used to get that package context by pushing the repo root's parent onto
+# sys.path and importing through the checkout's on-disk directory name. That
+# mutates sys.path for the whole process just from importing this module,
+# and puts a filesystem root at the *front* of the search path ahead of the
+# stdlib and site-packages -- a shadowing hazard for anything else that runs
+# afterwards, even though nothing collides today.
+#
+# Instead, register the repo root as a package under a private, fixed name
+# directly in sys.modules via importlib.util.spec_from_file_location, with
+# submodule_search_locations pointing at the repo root. That gives place.py
+# a real package context to resolve its relative import against, without
+# touching sys.path or geo.py/place.py at all, and is deterministic
+# regardless of what the checkout directory is named or where it lives.
 REPO_ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
-REPO_PKG_NAME = os.path.basename(REPO_ROOT)
-sys.path.insert(0, os.path.dirname(REPO_ROOT))
+_REPO_PKG_NAME = "_ntemath_repo"
+
+
+def _repo_geo_and_place():
+    """Import geo.py and place.py as submodules of a synthetic package
+    aliasing the repo root, so place.py's `from .geo import ...` resolves --
+    without ever touching sys.path.
+    """
+    if _REPO_PKG_NAME not in sys.modules:
+        init_path = os.path.join(REPO_ROOT, "__init__.py")
+        spec = importlib.util.spec_from_file_location(
+            _REPO_PKG_NAME, init_path, submodule_search_locations=[REPO_ROOT]
+        )
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[_REPO_PKG_NAME] = module
+        spec.loader.exec_module(module)
+    geo = importlib.import_module(f"{_REPO_PKG_NAME}.geo")
+    place = importlib.import_module(f"{_REPO_PKG_NAME}.place")
+    return geo, place
 
 # Chosen so the Lemire rejection branch in RefRNG.integers() actually fires
 # within a small, fast-to-replay window, while every emitted value stays well
@@ -150,8 +178,7 @@ def refrng_fixture() -> None:
 
 
 def frame_fixture() -> None:
-    geo = importlib.import_module(f"{REPO_PKG_NAME}.geo")
-    place = importlib.import_module(f"{REPO_PKG_NAME}.place")
+    geo, place = _repo_geo_and_place()
     BBox = geo.BBox
     LocalFrame = place.LocalFrame
 
