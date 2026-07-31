@@ -86,10 +86,32 @@ So detection-time claims can only be made where the fire model is validated. It 
 | Plan | Delivers |
 |---|---|
 | **1 — Foundation** ✅ complete | The model running live, verified against the Python |
-| **2 — The Lab, Benchmark A** | Live model controls; coverage head-to-head against a uniform grid; results as proper data visualisation |
+| **2 — The Lab, Benchmark A** — *in progress, 3 of 11 tasks* | Live model controls; coverage head-to-head against a uniform grid; results as proper data visualisation |
 | **3 — The Lab, Benchmark B** | Detection time across 100 ignitions (Los Padres only) |
 | **4 — The Rail** | The scroll narrative: seven beats, camera choreography, the rod exploding on scroll, presenter mode |
 | **5 — Set pieces** | Camper app, sensor-fusion truth table, assumptions page, offline tile caching for the venue |
+
+### Plan 2 progress
+
+| Task | State |
+|---|---|
+| 1. Bake the risk components | ✅ complete — also made the bake byte-reproducible by pinning the fire-weather window |
+| 2. Committed Python parity reference | ✅ complete — `python -m tools.bake.verify_parity` |
+| 3. Recombine risk in the browser | ✅ complete — bit-for-bit anchor holds on all 540,000 pixels |
+| 4–11 | not started |
+
+**156 tests.** The parity claim is now a command anyone can re-run rather than something measured once by hand:
+
+```bash
+python -m tools.bake.verify_parity     # what place.py gets
+cd web && npm test                     # the TypeScript asserts the same numbers as hand-typed literals
+```
+
+Those two are deliberately not wired together — the test does not read the reference's output. Two independent implementations agreeing is the point; a program agreeing with itself would prove nothing.
+
+The bake is now reproducible too. `meta.json` records the resolved fire-weather window, and `--pin-window` replays it, so re-baking does not silently move the raster the parity figures are pinned against.
+
+---
 
 Fire simulation for Plan 3 was measured, not assumed: at 90 m resolution, 100 ignitions cost about **8.3 minutes** total, because mesh construction (152 s) dominates and is built once and reused. Going coarser is a false economy — arrival-time error at coarse spacing can exceed the whole detection window being measured.
 
