@@ -204,6 +204,65 @@ def frame_fixture() -> None:
     _write("frame.json", {"cases": cases})
 
 
+def poisson_fixture() -> None:
+    import numpy as np
+
+    _, place = _repo_geo_and_place()
+    variable_poisson_disk = place.variable_poisson_disk
+
+    cases = []
+    for tag, ny, nx, seed, rmin, rmax in [
+        ("smooth", 32, 32, 3, 1.0, 4.0),
+        ("peaked", 24, 40, 11, 0.8, 6.0),
+    ]:
+        # A deterministic, non-trivial risk field -- no RNG, so both sides agree.
+        yy, xx = np.mgrid[0:ny, 0:nx]
+        u = xx / (nx - 1)
+        v = yy / (ny - 1)
+        risk = (0.5 + 0.5 * np.sin(3 * np.pi * u) * np.cos(2 * np.pi * v))
+        if tag == "peaked":
+            risk = risk ** 3
+
+        # This grid's sin/cos symmetry produces exact float64 ties among the
+        # very highest values (e.g. for the 32x32 "smooth" case, (ii=26,jj=31)
+        # and (ii=5,jj=0) land on bit-identical risk). place.py's internal
+        # `np.argsort(...)[::-1]` breaks such ties via quicksort's unstable,
+        # undocumented internal order -- not the total order (-risk, flatIndex)
+        # the TS port uses (see poisson.ts). Reproducing numpy's specific
+        # quicksort tie order in TS would mean depending on an implementation
+        # detail numpy itself does not guarantee across versions, so instead
+        # the fixture is built to have an unambiguous single maximum: a tiny
+        # monotonic-in-flat-index multiplier that only ever shrinks risk (so
+        # it can never push a value past the 1.0 clip boundary and create a
+        # *new* tie there), sized well above float32 rounding noise so the
+        # winning pixel stays the same after the risk array is snapped to
+        # float32 below.
+        flat_idx = (yy * nx + xx).astype(np.float64)
+        risk = risk * (1.0 - 1e-3 * flat_idx / flat_idx.max())
+        risk = np.clip(risk, 0.0, 1.0)
+
+        # web/src/lib/types.ts stores Field.risk as Float32Array. Snap here so
+        # place.py computes on the exact values the TS port will read back --
+        # otherwise every radius and candidate position drifts by the
+        # float64-vs-float32 rounding gap, and that drift compounds across
+        # the active-list chain as points get placed.
+        risk = risk.astype(np.float32).astype(np.float64)
+
+        pts = variable_poisson_disk(
+            RefRNG(seed), risk, width_km=40.0, height_km=30.0,
+            r_min_km=rmin, r_max_km=rmax, mask=None, k=24,
+        )
+        cases.append({
+            "tag": tag, "ny": ny, "nx": nx, "seed": seed,
+            "r_min_km": rmin, "r_max_km": rmax,
+            "width_km": 40.0, "height_km": 30.0,
+            "risk": [float(x) for x in risk.ravel()],
+            "points": [[float(p[0]), float(p[1])] for p in pts],
+        })
+    _write("poisson.json", {"cases": cases})
+
+
 if __name__ == "__main__":
     refrng_fixture()
     frame_fixture()
+    poisson_fixture()
