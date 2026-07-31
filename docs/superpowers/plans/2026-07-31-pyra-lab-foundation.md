@@ -578,7 +578,12 @@ export function pairwiseSum(
   const n = to - from
   if (n <= 0) return 0
 
-  if (n <= 8) {
+  // NOTE: `n < 8`, not `n <= 8`. At exactly n == 8 numpy takes the UNROLLED
+  // path below, whose combination order ((r0+r1)+(r2+r3))+((r4+r5)+(r6+r7))
+  // is a different parenthesisation of the same eight additions than a
+  // left-to-right fold. FP addition is not associative, so `<= 8` here
+  // diverges from numpy on ~37% of random 8-element inputs.
+  if (n < 8) {
     let s = 0
     for (let i = from; i < to; i++) s += a[i]
     return s
