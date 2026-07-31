@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+
+# Generated layers, cached open data and rendered output.
+outputs/
+
+# Sibling projects, each its own repository.
+ntefire/
+ntemath/
