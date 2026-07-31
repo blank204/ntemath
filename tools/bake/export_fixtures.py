@@ -5,13 +5,27 @@ Run from the repo root:  python -m tools.bake.export_fixtures
 
 from __future__ import annotations
 
+import importlib
 import json
 import os
+import sys
 
 from .refrng import RefRNG, M64
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.abspath(os.path.join(HERE, "..", "..", "web", "tests", "fixtures"))
+
+# The repo root (this checkout: "Pyra NTE", not the README's "ntemath") is a
+# Python package -- it has its own __init__.py, and place.py imports geo.py
+# via a relative `from .geo import ...`. That relative import only resolves
+# if place.py is loaded *as a submodule of that package*, so we put the
+# repo root's parent on sys.path and import geo/place through the package by
+# its actual on-disk name (via importlib, since that name contains a space
+# and isn't a valid `import a.b` identifier) rather than the literal
+# "ntemath" the brief assumed. This never touches geo.py or place.py.
+REPO_ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
+REPO_PKG_NAME = os.path.basename(REPO_ROOT)
+sys.path.insert(0, os.path.dirname(REPO_ROOT))
 
 # Chosen so the Lemire rejection branch in RefRNG.integers() actually fires
 # within a small, fast-to-replay window, while every emitted value stays well
@@ -135,5 +149,34 @@ def refrng_fixture() -> None:
     _write("refrng.json", payload)
 
 
+def frame_fixture() -> None:
+    geo = importlib.import_module(f"{REPO_PKG_NAME}.geo")
+    place = importlib.import_module(f"{REPO_PKG_NAME}.place")
+    BBox = geo.BBox
+    LocalFrame = place.LocalFrame
+
+    boxes = {
+        "los-padres": BBox(-120.3, 34.4, -119.4, 35.0),
+        "sweden-norrland": BBox(15.5, 63.5, 16.5, 64.1),
+        "congo-basin": BBox(23.0, 0.2, 23.9, 0.9),
+    }
+    cases = []
+    for name, box in boxes.items():
+        f = LocalFrame(box)
+        w, h = f.extent_km
+        probes = [(box.west, box.south), (box.east, box.north),
+                  (f.lon0, f.lat0), (box.west, box.north)]
+        cases.append({
+            "name": name,
+            "box": [box.west, box.south, box.east, box.north],
+            "lon0": f.lon0, "lat0": f.lat0, "kx": f.kx, "ky": f.ky,
+            "extent_km": [float(w), float(h)],
+            "to_km": [[float(v) for v in f.to_km(lon, lat)]
+                      for lon, lat in probes],
+        })
+    _write("frame.json", {"cases": cases})
+
+
 if __name__ == "__main__":
     refrng_fixture()
+    frame_fixture()
