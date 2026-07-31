@@ -159,6 +159,7 @@ export function RunPanel() {
   const {
     regionName, region, params, result, running, error, availableRegions,
     setRegionName, setParam, setWeights, setRunning, setResult, setBenchmark,
+    setTriangulation,
     setAvailableRegions, setError,
   } = useModelStore()
 
@@ -209,11 +210,13 @@ export function RunPanel() {
       if (e.data.type === 'done') {
         setResult(e.data.result)
         setBenchmark(e.data.benchmark)
+        setTriangulation(e.data.triangulation)
       } else {
         // A failed run must not leave the previous run's stats on screen next
         // to the error — the reader would take them for this run's answer.
         setResult(null)
         setBenchmark(null)
+        setTriangulation(null)
         setError(e.data.message)
       }
       setRunning(false)

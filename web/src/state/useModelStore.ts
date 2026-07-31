@@ -48,6 +48,8 @@ interface ModelState {
   params: PlaceParams
   result: PlaceResult | null
   benchmark: BenchmarkResult | null
+  /** The same run scored under the two-tower rule. See DoneMessage. */
+  triangulation: BenchmarkResult | null
   running: boolean
   error: string | null
 
@@ -61,17 +63,10 @@ interface ModelState {
   setRunning: (b: boolean) => void
   setResult: (r: PlaceResult | null) => void
   setBenchmark: (b: BenchmarkResult | null) => void
+  setTriangulation: (b: BenchmarkResult | null) => void
   setError: (m: string | null) => void
 }
 
-/**
- * UI defaults. Saturation is the default budget mode: node count is whatever
- * the coverage target requires, and spacing is derived from detectKm by
- * budget.ts (detectKm * 0.55 and detectKm * 1.30), never restated here.
- *
- * The drive weights are spread from risk.ts's DEFAULT_WEIGHTS, which carries
- * plan.risk_field's own literal parameter defaults — also never restated here.
- */
 /**
  * The region the Lab opens on: the one whose risk field is driven by
  * lightning rather than by fire history. Every other region in the picker
@@ -79,6 +74,14 @@ interface ModelState {
  */
 export const DEFAULT_REGION = 'james-bay'
 
+/**
+ * UI defaults. Saturation is the default budget mode: tower count is whatever
+ * the coverage target requires, and spacing is derived from detectKm by
+ * budget.ts (detectKm * 0.55 and detectKm * 1.30), never restated here.
+ *
+ * The drive weights are spread from risk.ts's DEFAULT_WEIGHTS, which carries
+ * plan.risk_field's own literal parameter defaults — also never restated here.
+ */
 export const DEFAULT_PARAMS: PlaceParams = {
   seed: 7,
   /**
@@ -108,13 +111,15 @@ export const useModelStore = create<ModelState>((set) => ({
   params: DEFAULT_PARAMS,
   result: null,
   benchmark: null,
+  triangulation: null,
   running: false,
   error: null,
 
   // A benchmark curve belongs to one region. Carrying it across a region
   // change would render one region's finding under another region's name.
   setRegionName: (n) => set({
-    regionName: n, region: null, result: null, benchmark: null, error: null,
+    regionName: n, region: null, result: null, benchmark: null,
+    triangulation: null, error: null,
   }),
   setRegion: (r) => set({ region: r }),
   setAvailableRegions: (r) => set({ availableRegions: r }),
@@ -128,5 +133,6 @@ export const useModelStore = create<ModelState>((set) => ({
   setRunning: (b) => set({ running: b }),
   setResult: (r) => set({ result: r }),
   setBenchmark: (b) => set({ benchmark: b }),
+  setTriangulation: (b) => set({ triangulation: b }),
   setError: (m) => set({ error: m }),
 }))

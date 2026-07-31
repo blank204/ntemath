@@ -31,6 +31,34 @@ export function coverageSentence(a: {
 }
 
 /**
+ * Benchmark C, in a sentence: the same network scored on two towers.
+ *
+ * It leads with how little of the region is triangulated, not with the
+ * margin. A favourable comparison on a small number is still a small number,
+ * and the small number is the one a reader needs first.
+ */
+export function triangulationSentence(
+  single: BenchmarkResult, double: BenchmarkResult,
+): string {
+  const at = double.atBudget
+  const head =
+    `Only ${pct1(at.pyra)} of this region's demand is within range of two ` +
+    `towers, against ${pct1(single.atBudget.pyra)} within range of one. A ` +
+    'network sized to hear every strike once triangulates a fraction of it.'
+  const lead = at.deltaPP >= 0
+    ? ` On that harder rule the risk-driven placement leads the uniform grid ` +
+      `by ${pp1(at.deltaPP)} pp`
+    : ` On that harder rule the uniform grid leads by ${pp1(at.deltaPP)} pp`
+  const cross = double.crossoverNodes == null
+    ? ', and unlike single coverage the grid never takes the lead at any ' +
+      'budget measured — a lattice spaces to avoid overlap, and overlap is ' +
+      'the product here.'
+    : `, until ${double.crossoverNodes.toLocaleString()} towers, where the ` +
+      'grid takes the lead.'
+  return head + lead + cross
+}
+
+/**
  * The gradient gate, in a sentence.
  *
  * The region was chosen on a hypothesis — that a coast gives land-water

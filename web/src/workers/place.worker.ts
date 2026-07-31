@@ -30,7 +30,15 @@ export interface DoneMessage {
   type: 'done'
   runId: number
   result: PlaceResult
+  /** Benchmark A: covered means at least one tower in range. */
   benchmark: BenchmarkResult
+  /**
+   * Benchmark C: covered means at least TWO towers in range — the rule a
+   * triangulating network is actually sold on. Computed from the same
+   * placement and the same demand points as `benchmark`, because two
+   * coverage numbers taken from different runs cannot be compared.
+   */
+  triangulation: BenchmarkResult
 }
 
 export interface ErrorMessage {
@@ -53,7 +61,7 @@ export function buildDone(
   runId: number, region: RegionData, params: PlaceParams,
 ): { message: DoneMessage; transfer: ArrayBufferLike[] } {
   const result = runPlacement(region, params)
-  const benchmark = runBenchmark({
+  const benchArgs = {
     risk: result.risk,
     mask: region.mask,
     widthKm: region.meta.widthKm,
@@ -62,14 +70,16 @@ export function buildDone(
     detectKm: params.detectKm,
     demandStride: params.demandStride,
     strideKm: strideKm(region.meta, params.demandStride),
-  })
+  }
+  const benchmark = runBenchmark(benchArgs)
+  const triangulation = runBenchmark({ ...benchArgs, minTowers: 2 })
   // Transfer the big buffers rather than structured-cloning them. `risk` goes
   // too: the map re-renders its raster from it, so the reader sees the field
   // itself change when a weight moves. runBenchmark has already read all three
   // by this point — `BenchmarkResult` is plain scalars and copies, holding no
   // view back onto them.
   return {
-    message: { type: 'done', runId, result, benchmark },
+    message: { type: 'done', runId, result, benchmark, triangulation },
     transfer: [
       result.candidates.buffer, result.nodes.buffer, result.risk.data.buffer,
     ],

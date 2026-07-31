@@ -61,6 +61,44 @@ export function coverageOf(
 }
 
 /**
+ * Demand fraction within range of at least `k` towers.
+ *
+ * WHY K MATTERS HERE. One tower already gives a fix: flash-to-bang for the
+ * range, the microphone array for the bearing. Two turn that into an
+ * intersection, and the error stops resting on how well a single array
+ * resolved an angle. So "covered" for a triangulating network is not "some
+ * tower can hear it" but "two can".
+ *
+ * At k = 1 this returns exactly what `coverageOf` returns, and a test pins
+ * that — the two must never drift, because every published single-coverage
+ * figure comes from the other one.
+ */
+export function coverageOfK(
+  candXY: Float64Array, demandXY: Float64Array,
+  demandW: Float64Array, radiusKm: number, k: number,
+): [number, number] {
+  if (k <= 1) return coverageOf(candXY, demandXY, demandW, radiusKm)
+  const nc = candXY.length / 2
+  const nd = demandXY.length / 2
+  if (nc === 0 || nd === 0) return [0, 0]
+
+  const cx = new Float64Array(nc), cy = new Float64Array(nc)
+  for (let i = 0; i < nc; i++) { cx[i] = candXY[2 * i]; cy[i] = candXY[2 * i + 1] }
+  const index = new GridIndex(cx, cy, Math.max(radiusKm, 1e-6))
+
+  // Accumulated in demand order, like coverageOf, so the two agree on the
+  // float64 summation order as well as on the answer.
+  const hitW: number[] = []
+  let hits = 0
+  for (let i = 0; i < nd; i++) {
+    const seen = index.withinRadius(demandXY[2 * i], demandXY[2 * i + 1], radiusKm)
+    if (seen.length >= k) { hitW.push(demandW[i]); hits++ }
+  }
+  const total = pairwiseSum(demandW)
+  return [total > 0 ? pairwiseSum(hitW) / total : 0, hits / nd]
+}
+
+/**
  * The demand indices one candidate sees, in the order scipy would return
  * them: **ascending**.
  *

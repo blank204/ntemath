@@ -1,6 +1,6 @@
 import type { Field } from './types'
 import { uniformGrid, capToCommonCount } from './grid'
-import { coverageOf, demandPoints } from './cover'
+import { coverageOfK, demandPoints } from './cover'
 
 export interface BenchmarkPoint {
   /** The node budget asked for. */
@@ -36,6 +36,13 @@ export interface BenchmarkResult {
   strideKm: number
   demandCount: number
   detectKm: number
+  /**
+   * How many towers a demand point needs in range to count as covered. 1 is
+   * "some tower can hear it"; 2 is "two can", which is what a triangulating
+   * network actually sells. Carried on the result so no coverage figure can
+   * be shown without the rule that produced it.
+   */
+  minTowers: number
 }
 
 /**
@@ -120,8 +127,11 @@ export function runBenchmark(args: {
   detectKm: number
   demandStride: number
   strideKm: number
+  /** Towers required in range per demand point. Defaults to 1. */
+  minTowers?: number
 }): BenchmarkResult {
   const { risk, mask, widthKm, heightKm, nodes, detectKm } = args
+  const minTowers = args.minTowers ?? 1
   const total = nodes.length / 2
   const demand = demandPoints(risk, mask, widthKm, heightKm, args.demandStride)
   const demandCount = demand.xy.length / 2
@@ -130,6 +140,7 @@ export function runBenchmark(args: {
     strideKm: args.strideKm,
     demandCount,
     detectKm,
+    minTowers,
   }
   const empty = {
     points: [], atBudget: EMPTY, bestMargin: EMPTY,
@@ -148,8 +159,8 @@ export function runBenchmark(args: {
     const [a, b] = capToCommonCount(pyraArm, gridArm)
     const scored = a.length / 2
     if (scored === 0) return null
-    const [pyra] = coverageOf(a, demand.xy, demand.w, detectKm)
-    const [uniform] = coverageOf(b, demand.xy, demand.w, detectKm)
+    const [pyra] = coverageOfK(a, demand.xy, demand.w, detectKm, minTowers)
+    const [uniform] = coverageOfK(b, demand.xy, demand.w, detectKm, minTowers)
     return { requested, scored, pyra, uniform, deltaPP: 100 * (pyra - uniform) }
   }
 

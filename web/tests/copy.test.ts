@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   coverageSentence, benchmarkSentence, seedSentence, weightSentence,
   budgetSentence, unbakedNotice, gateSentence, ignitionCaveat,
+  triangulationSentence,
 } from '../src/ui/copy'
 import { REGIONS } from '../src/lib/regions'
 import type { BenchmarkResult } from '../src/lib/benchmark'
@@ -19,6 +20,7 @@ const result: BenchmarkResult = {
   strideKm: 1.413744948247486,
   demandCount: 13676,
   detectKm: 15,
+  minTowers: 1,
 }
 
 const gate: LightningGate = {
@@ -87,6 +89,37 @@ describe('benchmarkSentence', () => {
     const s2 = benchmarkSentence({ ...result, crossoverNodes: null })
     expect(s2).not.toContain('88')
     expect(s2.toLowerCase()).toContain('never')
+  })
+})
+
+describe('triangulationSentence', () => {
+  const double: BenchmarkResult = {
+    ...result,
+    minTowers: 2,
+    atBudget: { requested: 111, scored: 64, pyra: 0.109, uniform: 0.070, deltaPP: 3.933 },
+    bestMargin: { requested: 111, scored: 64, pyra: 0.109, uniform: 0.070, deltaPP: 3.933 },
+    crossoverNodes: null,
+  }
+  const s = triangulationSentence(result, double)
+
+  it('leads with how little is triangulated, not with the margin', () => {
+    // A favourable comparison on a small number is still a small number, and
+    // the small number is the one a reader needs.
+    expect(s.indexOf('10.9%')).toBeLessThan(s.indexOf('3.9'))
+  })
+
+  it('names the rule that produced it', () => {
+    expect(s.toLowerCase()).toContain('two towers')
+  })
+
+  it('says the grid never takes the lead under this rule, when it does not', () => {
+    expect(s.toLowerCase()).toContain('never')
+  })
+
+  it('does not claim that when the grid does take the lead', () => {
+    const s2 = triangulationSentence(result, { ...double, crossoverNodes: 90 })
+    expect(s2.toLowerCase()).not.toContain('never')
+    expect(s2).toContain('90')
   })
 })
 

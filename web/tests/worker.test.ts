@@ -19,6 +19,18 @@ describe('buildDone', () => {
     expect(built.message.benchmark.crossoverNodes).toBe(285)
   }, 300000)
 
+  it('carries the double-coverage curve beside the single one', () => {
+    // Both rules, from one run, on one set of demand points — otherwise the
+    // two numbers on screen would come from different placements and the
+    // comparison between them would mean nothing.
+    expect(built.message.benchmark.minTowers).toBe(1)
+    expect(built.message.triangulation.minTowers).toBe(2)
+    expect(built.message.triangulation.atBudget.scored)
+      .toBe(built.message.benchmark.atBudget.scored)
+    expect(built.message.triangulation.atBudget.pyra)
+      .toBeLessThan(built.message.benchmark.atBudget.pyra)
+  }, 300000)
+
   it('transfers three distinct buffers, each owning the whole of its own', () => {
     // Distinct: postMessage throws DataCloneError on a duplicate transferable,
     // which would happen the moment two of these views shared a buffer.
