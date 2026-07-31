@@ -1,4 +1,4 @@
-# Handoff — 2026-07-31, 22:20
+# Handoff — 2026-07-31, 22:50
 
 For the next agent. Read this first, then
 `docs/superpowers/specs/2026-07-31-pyra-lightning-pivot.md`.
@@ -7,7 +7,7 @@ For the next agent. Read this first, then
 
 ## 1. Where things stand
 
-Branch `pyra-site`. **352 tests pass** (`cd web && npm test`), plus **33 Python
+Branch `pyra-site`. **363 tests pass** (`cd web && npm test`), plus **33 Python
 tests** (`python -m unittest tools.bake.test_lightning tools.bake.test_regions`).
 `npm run build` and `npx tsc -b` are clean. Nothing is half-finished in the
 working tree.
@@ -48,6 +48,12 @@ that fails if the box, the variable or the statistic moves.
 | best margin | +5.56 pp at 37 | +3.93 pp at 111, still climbing |
 | grid takes the lead at | 88 towers | never, in this range |
 
+Those two-tower figures are at the capped count of 64 — the most the grid can
+realise when asked for 111. At the full 111 towers the shipped placement
+triangulates **43.7%**, and the same towers re-chosen for the two-tower rule
+reach **54.6%** — **+10.8 pp, paid for with −7.1 pp of single coverage**
+(95.1% → 88.1%). Both columns are on screen; it is a trade, not a win.
+
 Saturation to the 95% target takes **111 towers** and reaches 95.1%
 risk-weighted coverage. FWI p90 here is 12.3 against Los Padres' 48.8 — this is
 a wet boreal coast, and with `fwiNorm` at 0.15 the lightning layer accounts for
@@ -76,6 +82,12 @@ most of what varies in the drive term.
   time, real physics, temperature-dependent speed of sound, the silence left in.
 - **Benchmark C** — `coverageOfK`, `runBenchmark({minTowers})`, both curves from
   one worker run, on screen in the benchmark panel.
+- **`greedyMinimiseK`** — selection that optimises k-coverage directly. "At
+  least k" is **not submodular** for k ≥ 2 (the first tower to reach a point
+  buys nothing, the second buys all of it), so CELF's lazy bound does not
+  apply and this greedy recomputes gains each round. The objective is progress
+  towards k, with completion weight as a tie-break; demand that no combination
+  of candidates could ever see twice is excluded rather than chased.
 - The spec's §2 science constraints are now **tests over every string the site
   can produce** (`web/tests/copy.test.ts`).
 
@@ -89,20 +101,14 @@ most of what varies in the drive term.
    the map because there is nowhere else to put it yet.
 2. **The exploding 3D tower** — camera head, microphone booms, solar, compute,
    backhaul. **Aarav answered: build from primitives, no model exists.**
-3. **A k-aware optimiser.** `greedyMinimise` minimises SINGLE coverage, so
-   Benchmark C scores the risk-driven arm on an objective it never optimised —
-   +3.9 pp is a floor, not a ceiling. Note that "at least k" coverage is not
-   submodular for k ≥ 2, so CELF's lazy bound is not valid: use a plain greedy
-   that recomputes gains (181 candidates × 13,676 demand points is cheap) and
-   say in the code why the lazy version was not reused.
-4. **Localisation error in metres.** The other half of what two towers buy, and
+3. **Localisation error in metres.** The other half of what two towers buy, and
    the honest version needs a stated range-error assumption (GDOP ≈ σ/sin θ).
    `docs/lightning-research.md` says the widely-quoted "~10% thunder distance
    error" is **unverified as a formal measurement** — the one defensible number
    is the ~6% systematic from assuming warm-air sound speed. Label whatever is
    chosen as an assumption, in `/assumptions`.
-5. **Presenter mode and skip-to-Lab**, then **`/assumptions`**.
-6. Optional: re-bake Los Padres onto the lightning layer, or drop it from the
+4. **Presenter mode and skip-to-Lab**, then **`/assumptions`**.
+5. Optional: re-bake Los Padres onto the lightning layer, or drop it from the
    picker. It is currently the only region whose risk means "where fire has
    been", which is defensible — it is the parity anchor — but it is also the
    one place the site shows two different meanings under one word.

@@ -182,7 +182,18 @@ Same 111 towers, same demand points, one rule changed, and the sign of the margi
 
 **The prediction was that the margin would be wider under the two-tower rule. It is not** — the peak is 3.93 pp against single coverage's 5.56 — and that comparison turned out to be meaningless, because the double-coverage margin is still climbing at the largest budget measured. The page leads with 10.9%, not with the margin: a network sized to hear every strike once triangulates about a tenth of its own region, and a favourable comparison on a small number is still a small number.
 
-The risk-driven arm is also being scored on an objective it never optimised — `greedyMinimise` minimises single coverage — so +3.9 pp is a floor.
+### Optimising for the rule being sold
+
+The comparison above scores the risk-driven arm on an objective it never optimised. `greedyMinimiseK` optimises for it directly — same 181-candidate pool, same 111 towers, one objective changed:
+
+| objective | single coverage | double coverage |
+|---|---:|---:|
+| k = 1 (shipped) | 95.14% | 43.73% |
+| k = 2 | 88.08% | **54.57%** |
+
+**+10.8 pp of triangulated ground for −7.1 pp of ground heard at all.** A trade, not a free win, and both columns are on screen. Which side a deployment wants is a question about the terrain — whether a bearing-and-range fix from one tower is good enough — not about the optimiser.
+
+"At least k" coverage is **not submodular** for k ≥ 2: the first tower to reach a point buys nothing and the second buys all of it, so a marginal gain can rise as the chosen set grows. CELF's lazy bound is invalid there, so this greedy recomputes every gain each round — 65 ms for the whole selection, because the candidate pool is small by construction. Two failure modes the tests caught first: at k = 2 every candidate has zero completion-gain on the opening move (so the objective is progress towards k, with completion kept only as a tie-break), and demand no combination of candidates could ever see twice must be excluded rather than chased.
 
 ---
 
