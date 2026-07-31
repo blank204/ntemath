@@ -61,6 +61,114 @@ export function coverageOf(
 }
 
 /**
+ * Fewest candidates bringing `target` of risk-weighted demand within range of
+ * at least `k` of them.
+ *
+ * WHY THIS IS NOT `greedyMinimise` WITH A PARAMETER. "At least k" coverage is
+ * NOT submodular for k >= 2: the first tower to reach a demand point buys
+ * nothing, and the second buys all of it, so a marginal gain can RISE as the
+ * chosen set grows. CELF's whole basis — a stored gain is an upper bound on
+ * the true gain — is therefore invalid here, and reusing the lazy loop would
+ * silently accept stale bounds that are too low. This one recomputes every
+ * candidate's gain each round. That is O(candidates x demand-per-candidate)
+ * per pick, which on the shipped region is ~22k operations a round: cheap,
+ * because the blue-noise pool is small by construction.
+ *
+ * At k = 1 it is the same objective as `greedyMinimise` and a test asserts it
+ * makes the same picks. The shipped single-coverage numbers still come from
+ * `greedyMinimise`, which is the function with Python parity behind it.
+ */
+export function greedyMinimiseK(
+  candXY: Float64Array, demandXY: Float64Array, demandW: Float64Array,
+  radiusKm: number, k: number, target = 0.95, maxNodes: number | null = null,
+): CoverageResult {
+  const nc = candXY.length / 2
+  const nd = demandXY.length / 2
+  const empty: CoverageResult = {
+    chosen: [], coveredFraction: 0, areaFraction: 0, perNodeGain: [],
+  }
+  if (nc === 0 || nd === 0) return empty
+  const total = pairwiseSum(demandW)
+  if (total <= 0) return empty
+
+  const dx = new Float64Array(nd), dy = new Float64Array(nd)
+  for (let i = 0; i < nd; i++) { dx[i] = demandXY[2 * i]; dy[i] = demandXY[2 * i + 1] }
+  const dIndex = new GridIndex(dx, dy, Math.max(radiusKm, 1e-6))
+  const sees: number[][] = new Array(nc)
+  for (let i = 0; i < nc; i++) {
+    sees[i] = seenDemand(dIndex, candXY[2 * i], candXY[2 * i + 1], radiusKm)
+  }
+
+  // How many chosen towers already reach each demand point. A point counts
+  // once its tally reaches k, and never again.
+  const seenBy = new Int32Array(nd)
+  const taken = new Uint8Array(nc)
+  const chosen: number[] = []
+  const gains: number[] = []
+  const limit = maxNodes ?? nc
+  const need = Math.max(1, Math.floor(k))
+  let got = 0
+
+  // Which demand points COULD ever be seen k times, by every candidate in
+  // the pool at once. Chasing the rest would spend towers on ground that can
+  // never be triangulated no matter what is built — and at k >= 2 the naive
+  // objective is blind to this: a first tower on an isolated point scores
+  // zero completion gain, so the search would stall on the opening move.
+  const reach = new Int32Array(nd)
+  for (let i = 0; i < nc; i++) for (const d of sees[i]) reach[d]++
+
+  while (got / total < target && chosen.length < limit) {
+    let bestI = -1
+    let bestGain = 0
+    let bestFinish = 0
+    for (let i = 0; i < nc; i++) {
+      if (taken[i]) continue
+      // Progress towards k, which is submodular and therefore greedy-safe:
+      // every step a reachable point takes towards its k-th tower counts the
+      // same. Completion gain is carried alongside purely as a tie-break —
+      // between two picks that make equal progress, the one that finishes
+      // pairs is strictly better for the objective being measured.
+      const vals: number[] = []
+      const finishing: number[] = []
+      for (const d of sees[i]) {
+        if (reach[d] < need || seenBy[d] >= need) continue
+        vals.push(demandW[d])
+        if (seenBy[d] === need - 1) finishing.push(demandW[d])
+      }
+      const g = vals.length ? pairwiseSum(vals) : 0
+      const f = finishing.length ? pairwiseSum(finishing) : 0
+      // Ties go to the lower index, matching the ordering greedyMinimise's
+      // heap gives (its entries are (-gain, i, stamp) and `i` is unique).
+      if (g > bestGain || (g === bestGain && g > 0 && f > bestFinish)) {
+        bestGain = g; bestFinish = f; bestI = i
+      }
+    }
+    // Nothing left that can ever reach k. With k >= 2 that happens long
+    // before the budget runs out, and spending the rest on zero-gain picks
+    // would report towers that buy nothing.
+    if (bestI < 0 || bestGain <= 0) break
+
+    taken[bestI] = 1
+    for (const d of sees[bestI]) seenBy[d]++
+    const coveredVals: number[] = []
+    for (let d = 0; d < nd; d++) if (seenBy[d] >= need) coveredVals.push(demandW[d])
+    got = pairwiseSum(coveredVals)
+    chosen.push(bestI)
+    gains.push(bestGain / total)
+  }
+
+  let hits = 0
+  for (let d = 0; d < nd; d++) if (seenBy[d] >= need) hits++
+
+  return {
+    chosen,
+    coveredFraction: got / total,
+    areaFraction: hits / nd,
+    perNodeGain: gains,
+  }
+}
+
+/**
  * Demand fraction within range of at least `k` towers.
  *
  * WHY K MATTERS HERE. One tower already gives a fix: flash-to-bang for the

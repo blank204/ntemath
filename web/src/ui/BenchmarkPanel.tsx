@@ -4,6 +4,7 @@ import { CoverageBudgetChart } from './CoverageBudgetChart'
 import { HeroFigure, KpiRow, StatTile } from './StatTile'
 import {
   benchmarkSentence, coverageSentence, seedSentence, triangulationSentence,
+  doubleCoverageSentence,
 } from './copy'
 
 /**
@@ -16,7 +17,7 @@ import {
  * they are stat tiles now.
  */
 export function BenchmarkPanel() {
-  const { result, benchmark, triangulation } = useModelStore()
+  const { result, benchmark, triangulation, doubleCoverage } = useModelStore()
   if (!result || !benchmark || benchmark.points.length === 0) return null
 
   const at = benchmark.atBudget
@@ -74,17 +75,39 @@ export function BenchmarkPanel() {
             The same network, scored on two towers instead of one
           </h3>
           <KpiRow>
+            {/* Both tiles are at the CAPPED realised count, which is smaller
+                than the run's own tower count whenever the grid cannot place
+                as many as it was asked for. Saying which count each number
+                belongs to is the difference between a comparison and a
+                sleight of hand — the tuned pair below is at the full count. */}
             <StatTile label="Triangulated"
               value={`${(100 * triangulation.atBudget.pyra).toFixed(1)}%`}
-              note="demand within range of at least two towers" />
+              note={`within range of two towers, at ${
+                triangulation.atBudget.scored} towers`} />
             <StatTile label="Uniform grid, same rule"
               value={`${(100 * triangulation.atBudget.uniform).toFixed(1)}%`}
-              note={`risk-driven leads by ${
-                Math.abs(triangulation.atBudget.deltaPP).toFixed(1)} pp here`} />
+              note={`same ${triangulation.atBudget.scored}; risk-driven leads by ${
+                Math.abs(triangulation.atBudget.deltaPP).toFixed(1)} pp`} />
           </KpiRow>
           <p style={{ color: PALETTE.chart.inkMuted, fontSize: 11, marginTop: 8 }}>
             {triangulationSentence(benchmark, triangulation)}
           </p>
+          {doubleCoverage && (
+            <>
+              <KpiRow>
+                <StatTile label="Tuned for two towers"
+                  value={`${(100 * doubleCoverage.tunedDouble).toFixed(1)}%`}
+                  note={`up from ${(100 * doubleCoverage.siteDouble).toFixed(1)}% at the same ${
+                    doubleCoverage.nodeCount} towers`} />
+                <StatTile label="What it costs"
+                  value={`−${(100 * (doubleCoverage.siteSingle - doubleCoverage.tunedSingle)).toFixed(1)} pp`}
+                  note="single coverage given up to get it" />
+              </KpiRow>
+              <p style={{ color: PALETTE.chart.inkMuted, fontSize: 11, marginTop: 8 }}>
+                {doubleCoverageSentence(doubleCoverage)}
+              </p>
+            </>
+          )}
         </div>
       )}
       {seedNote && (

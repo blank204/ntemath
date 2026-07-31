@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { RegionData } from '../lib/loadRegion'
 import type { PlaceParams, PlaceResult } from '../lib/pipeline'
 import type { BenchmarkResult } from '../lib/benchmark'
+import type { DoubleCoverageArms } from '../workers/place.worker'
 import { DEFAULT_WEIGHTS, type Weights } from '../lib/risk'
 
 /** The two drive weights the Lab exposes as sliders. */
@@ -50,6 +51,8 @@ interface ModelState {
   benchmark: BenchmarkResult | null
   /** The same run scored under the two-tower rule. See DoneMessage. */
   triangulation: BenchmarkResult | null
+  /** What re-optimising the same towers for that rule costs and buys. */
+  doubleCoverage: DoubleCoverageArms | null
   running: boolean
   error: string | null
 
@@ -64,6 +67,7 @@ interface ModelState {
   setResult: (r: PlaceResult | null) => void
   setBenchmark: (b: BenchmarkResult | null) => void
   setTriangulation: (b: BenchmarkResult | null) => void
+  setDoubleCoverage: (a: DoubleCoverageArms | null) => void
   setError: (m: string | null) => void
 }
 
@@ -112,6 +116,7 @@ export const useModelStore = create<ModelState>((set) => ({
   result: null,
   benchmark: null,
   triangulation: null,
+  doubleCoverage: null,
   running: false,
   error: null,
 
@@ -119,7 +124,7 @@ export const useModelStore = create<ModelState>((set) => ({
   // change would render one region's finding under another region's name.
   setRegionName: (n) => set({
     regionName: n, region: null, result: null, benchmark: null,
-    triangulation: null, error: null,
+    triangulation: null, doubleCoverage: null, error: null,
   }),
   setRegion: (r) => set({ region: r }),
   setAvailableRegions: (r) => set({ availableRegions: r }),
@@ -134,5 +139,6 @@ export const useModelStore = create<ModelState>((set) => ({
   setResult: (r) => set({ result: r }),
   setBenchmark: (b) => set({ benchmark: b }),
   setTriangulation: (b) => set({ triangulation: b }),
+  setDoubleCoverage: (a) => set({ doubleCoverage: a }),
   setError: (m) => set({ error: m }),
 }))

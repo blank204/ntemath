@@ -1,6 +1,7 @@
 import { runPlacement, strideKm } from '../lib/pipeline'
 import type { PlaceParams, PlaceResult } from '../lib/pipeline'
 import { runBenchmark, type BenchmarkResult } from '../lib/benchmark'
+import { coverageOfK, demandPoints, greedyMinimiseK } from '../lib/cover'
 import type { RegionData } from '../lib/loadRegion'
 
 /**
@@ -39,6 +40,27 @@ export interface DoneMessage {
    * coverage numbers taken from different runs cannot be compared.
    */
   triangulation: BenchmarkResult
+  /** What re-optimising the same towers for the two-tower rule costs and buys. */
+  doubleCoverage: DoubleCoverageArms
+}
+
+/**
+ * The same candidate pool and the same tower count, selected twice: once to
+ * maximise single coverage (which is what the site ships) and once to
+ * maximise double coverage.
+ *
+ * Both numbers for both arms, because it is a trade rather than a free win —
+ * triangulating more ground means hearing less of it at all, and a panel
+ * showing only the column that improved would be selling.
+ */
+export interface DoubleCoverageArms {
+  nodeCount: number
+  /** The shipped placement. */
+  siteSingle: number
+  siteDouble: number
+  /** The same towers re-chosen for the two-tower rule. */
+  tunedSingle: number
+  tunedDouble: number
 }
 
 export interface ErrorMessage {
@@ -73,13 +95,39 @@ export function buildDone(
   }
   const benchmark = runBenchmark(benchArgs)
   const triangulation = runBenchmark({ ...benchArgs, minTowers: 2 })
+
+  // Re-select from the SAME candidate pool at the SAME count, for the other
+  // rule. About 65 ms on the shipped region — the pool is small by
+  // construction, which is what makes the plain (non-lazy) greedy affordable.
+  const demand = demandPoints(
+    result.risk, region.mask,
+    region.meta.widthKm, region.meta.heightKm, params.demandStride,
+  )
+  const tunedPick = greedyMinimiseK(
+    result.candidates, demand.xy, demand.w, params.detectKm, 2,
+    params.target, result.nodeCount,
+  )
+  const tunedXY = new Float64Array(tunedPick.chosen.length * 2)
+  tunedPick.chosen.forEach((idx, j) => {
+    tunedXY[2 * j] = result.candidates[2 * idx]
+    tunedXY[2 * j + 1] = result.candidates[2 * idx + 1]
+  })
+  const doubleCoverage: DoubleCoverageArms = {
+    nodeCount: result.nodeCount,
+    siteSingle: coverageOfK(result.nodes, demand.xy, demand.w, params.detectKm, 1)[0],
+    siteDouble: coverageOfK(result.nodes, demand.xy, demand.w, params.detectKm, 2)[0],
+    tunedSingle: coverageOfK(tunedXY, demand.xy, demand.w, params.detectKm, 1)[0],
+    tunedDouble: coverageOfK(tunedXY, demand.xy, demand.w, params.detectKm, 2)[0],
+  }
   // Transfer the big buffers rather than structured-cloning them. `risk` goes
   // too: the map re-renders its raster from it, so the reader sees the field
   // itself change when a weight moves. runBenchmark has already read all three
   // by this point — `BenchmarkResult` is plain scalars and copies, holding no
   // view back onto them.
   return {
-    message: { type: 'done', runId, result, benchmark, triangulation },
+    message: {
+      type: 'done', runId, result, benchmark, triangulation, doubleCoverage,
+    },
     transfer: [
       result.candidates.buffer, result.nodes.buffer, result.risk.data.buffer,
     ],

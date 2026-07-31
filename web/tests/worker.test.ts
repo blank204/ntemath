@@ -31,6 +31,15 @@ describe('buildDone', () => {
       .toBeLessThan(built.message.benchmark.atBudget.pyra)
   }, 300000)
 
+  it('carries what re-optimising for two towers would cost and buy', () => {
+    // Both arms are drawn from the same candidate pool at the same tower
+    // count, so the pair is a trade a reader can actually evaluate.
+    const arms = built.message.doubleCoverage
+    expect(arms.nodeCount).toBe(built.message.result.nodeCount)
+    expect(arms.tunedDouble).toBeGreaterThan(arms.siteDouble)
+    expect(arms.tunedSingle).toBeLessThan(arms.siteSingle)
+  }, 300000)
+
   it('transfers three distinct buffers, each owning the whole of its own', () => {
     // Distinct: postMessage throws DataCloneError on a duplicate transferable,
     // which would happen the moment two of these views shared a buffer.

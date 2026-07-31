@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   coverageSentence, benchmarkSentence, seedSentence, weightSentence,
   budgetSentence, unbakedNotice, gateSentence, ignitionCaveat,
-  triangulationSentence,
+  triangulationSentence, doubleCoverageSentence,
 } from '../src/ui/copy'
 import { REGIONS } from '../src/lib/regions'
 import type { BenchmarkResult } from '../src/lib/benchmark'
@@ -112,6 +112,13 @@ describe('triangulationSentence', () => {
     expect(s.toLowerCase()).toContain('two towers')
   })
 
+  it('says how many towers the figure belongs to', () => {
+    // The panel puts this beside a second pair measured at the full tower
+    // count. Two coverage figures at different counts, neither stating its
+    // count, would read as a contradiction or worse as a sleight of hand.
+    expect(s).toContain('64 towers')
+  })
+
   it('says the grid never takes the lead under this rule, when it does not', () => {
     expect(s.toLowerCase()).toContain('never')
   })
@@ -120,6 +127,31 @@ describe('triangulationSentence', () => {
     const s2 = triangulationSentence(result, { ...double, crossoverNodes: 90 })
     expect(s2.toLowerCase()).not.toContain('never')
     expect(s2).toContain('90')
+  })
+})
+
+describe('doubleCoverageSentence', () => {
+  const arms = {
+    nodeCount: 111,
+    siteSingle: 0.9514, siteDouble: 0.4373,
+    tunedSingle: 0.8808, tunedDouble: 0.5457,
+  }
+  const s = doubleCoverageSentence(arms)
+
+  it('states both halves of the trade, not just the half that improved', () => {
+    expect(s).toContain('43.7%')
+    expect(s).toContain('54.6%')
+    expect(s).toContain('95.1%')
+    expect(s).toContain('88.1%')
+  })
+
+  it('names it a trade in words, not only in numbers', () => {
+    expect(s.toLowerCase()).toMatch(/cost|trade|gives up|pay/)
+  })
+
+  it('says the two arms came from the same towers and the same pool', () => {
+    expect(s).toContain('111')
+    expect(s.toLowerCase()).toContain('same')
   })
 })
 
@@ -243,6 +275,11 @@ function allCopy(): string {
     budgetSentence({ mode: 'saturation', maxNodes: null, nodeCount: 111 }),
     gateSentence(gate),
     gateSentence({ ...gate, verdict: 'flat' }),
+    triangulationSentence(result, { ...result, minTowers: 2, crossoverNodes: null }),
+    doubleCoverageSentence({
+      nodeCount: 111, siteSingle: 0.95, siteDouble: 0.44,
+      tunedSingle: 0.88, tunedDouble: 0.55,
+    }),
     unbakedNotice('Congo Basin', ['James Bay', 'Los Padres']),
     ...REGIONS.map((r) => `${r.label} ${r.country} ${r.regime} ${r.ignition}`),
     ...REGIONS.map((r) => ignitionCaveat(r) ?? ''),

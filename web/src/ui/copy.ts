@@ -42,9 +42,11 @@ export function triangulationSentence(
 ): string {
   const at = double.atBudget
   const head =
-    `Only ${pct1(at.pyra)} of this region's demand is within range of two ` +
-    `towers, against ${pct1(single.atBudget.pyra)} within range of one. A ` +
-    'network sized to hear every strike once triangulates a fraction of it.'
+    `At ${at.scored.toLocaleString()} towers — the count both arms can ` +
+    `actually realise — only ${pct1(at.pyra)} of this region's demand is ` +
+    `within range of two towers, against ${pct1(single.atBudget.pyra)} ` +
+    'within range of one. A network sized to hear every strike once ' +
+    'triangulates a fraction of it.'
   const lead = at.deltaPP >= 0
     ? ` On that harder rule the risk-driven placement leads the uniform grid ` +
       `by ${pp1(at.deltaPP)} pp`
@@ -56,6 +58,30 @@ export function triangulationSentence(
     : `, until ${double.crossoverNodes.toLocaleString()} towers, where the ` +
       'grid takes the lead.'
   return head + lead + cross
+}
+
+/**
+ * What re-optimising the same towers for the two-tower rule costs and buys.
+ *
+ * Both columns, always. Triangulating more ground means hearing less of it at
+ * all, and a sentence that reported only the number that went up would be
+ * selling rather than measuring.
+ */
+export function doubleCoverageSentence(a: {
+  nodeCount: number
+  siteSingle: number; siteDouble: number
+  tunedSingle: number; tunedDouble: number
+}): string {
+  return (
+    `Those same ${a.nodeCount.toLocaleString()} towers, re-chosen from the ` +
+    'same candidate pool to maximise two-tower coverage instead of one, ' +
+    `reach ${pct1(a.tunedDouble)} triangulated against ${pct1(a.siteDouble)} ` +
+    `— and the cost is real: single coverage falls from ` +
+    `${pct1(a.siteSingle)} to ${pct1(a.tunedSingle)}. Hearing more of the ` +
+    'region twice means hearing less of it at all. Which one a deployment ' +
+    'wants depends on whether a bearing-and-range fix from one tower is ' +
+    'good enough for the ground it is over.'
+  )
 }
 
 /**
