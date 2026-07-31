@@ -108,15 +108,24 @@ built.
 |---|---|---|
 | Fuel / land cover | ESA WorldCover v200, 10 m | already baked, global |
 | Fire weather | Canadian FWI from ERA5 via Open-Meteo | already baked, global |
-| **Lightning density** | **NASA LIS/OTD 0.1° gridded climatology** | **new — replaces the FIRMS activity layer** |
+| **Lightning density** | **NASA LIS/OTD 0.5° HRFC climatology** | **shipped — replaces the FIRMS activity layer** |
 | Live strikes (aspirational) | NOAA GOES-GLM, keyless on public S3 | not shipped; cited |
 | Fuel moisture (aspirational) | KBDI via Earth Engine, ERA5 soil moisture | not shipped; cited |
 
 **Blitzortung is prohibited.** Its terms bar commercial use and redistribution
 and restrict the raw feed to network participants. Cite, never embed.
 
+**CORRECTED 2026-07-31, by the file itself: the resolution is 0.5°, not 0.1°.**
+The 0.1° product is VHRFC, which is LIS-only — TRMM flew a 35° inclination, so
+it reaches about ±38° of latitude and does not exist for any boreal region.
+Above that only the combined LIS/OTD HRFC exists, at 0.5° (~55 km), and at
+51–53 °N even its LIS half contributes exactly zero: this region is OTD alone,
+1995–2000. Verified in the granule, and pinned by a test.
+
 **Region: James Bay coast, Quebec — `(-80.8, 51.0, -76.2, 53.2)`.** About
-314 × 244 km, ~46 × 22 native LIS/OTD cells.
+314 × 244 km — **40 native LIS/OTD cells (4 × 10)**, not the ~46 × 22 the 0.1°
+assumption implied. The layer therefore carries a regional gradient and nothing
+finer; the fine structure in the risk field comes from fuel.
 
 Sized for the towers, not the old sensors: at a 15 km detection radius a
 66 km box holds about four towers, which is neither an interesting
@@ -150,13 +159,25 @@ produced the 2023 smoke over New York — while trading climatologically flat
 inland forest for a coast, where land–water convective contrast gives a
 physical mechanism for real spatial structure in strike density.
 
-**That gradient is a hypothesis, not a measured fact.** No literature
+**That gradient was a hypothesis, not a measured fact** — no literature
 quantifies it for this coast the way Alberta's foothills gradient is
-quantified. **Gate:** once the climatology is in hand, measure the strike
-density range across this box before baking. If it is flat, the lightning
-layer is decorative and the honest response is to say so in the source notes —
-not to pick a flattering region afterwards. Abitibi remains the fallback and
-loses nothing but the gradient.
+quantified. **The gate ran before the bake, on observed flash counts rather
+than the interpolated field, and it passed:**
+
+| quantity | value |
+|---|---|
+| observed OTD flashes in the box | 218 over 40 cells |
+| viewtime uniformity | 3.1% spread, so counts compare directly |
+| against a uniform rate | χ² = 118.1 on 39 dof, p = 6.8 × 10⁻¹⁰ |
+| inland half vs coastal half | 143 vs 75 flashes — 1.91×, p = 4.8 × 10⁻⁶ |
+| Spearman ρ with longitude | 0.469, p = 0.0022 |
+
+Structure, and structure along the axis the region was chosen for. The verdict
+is recorded in `meta.json` as `lightningGate` and quoted on the page. Per-cell
+Poisson error is around 40% at 5.45 flashes per cell, so only the regional
+gradient is significant and the source notes say so. Had it come back flat, the
+bake would have said "decorative" on stdout and in the notes rather than
+shopping for a flattering region. Abitibi remains the fallback.
 
 ---
 

@@ -147,7 +147,42 @@ wastes nodes on the Pacific.
 
 ---
 
-Fire simulation for Plan 3 was measured, not assumed: at 90 m resolution, 100 ignitions cost about **8.3 minutes** total, because mesh construction (152 s) dominates and is built once and reused. Going coarser is a false economy — arrival-time error at coarse spacing can exceed the whole detection window being measured.
+Fire simulation was measured, not assumed — and then deleted. At 90 m resolution 100 ignitions cost about **8.3 minutes**, mesh construction dominating; the reason it went is in `docs/fire-model-choice.md`. It measured time-to-detection *after* ignition, which is the opposite of what this product now claims.
+
+---
+
+## The lightning pivot, measured
+
+The risk field's third term is no longer "where fire has recently been". On James Bay it is **strike density** from the NASA LIS/OTD climatology — where ignition is likely. One raster swapped; the recombination arithmetic is byte-identical, and the bit-for-bit parity test now runs on both regions.
+
+**The resolution the spec got wrong.** LIS/OTD HRFC is 0.5° (~55 km), not the 0.1° the spec claimed. The 0.1° product is LIS-only and stops near ±38° of latitude, so it does not exist for any boreal region; at 51–53 °N even the combined product is OTD alone (1995–2000). That is **40 native cells for a 314 × 244 km box** — a regional gradient and nothing finer, with per-cell Poisson error around 40%. Upsampling is interpolation, not resolution.
+
+**The gradient gate, run before the bake, on observed flash counts:**
+
+| quantity | value |
+|---|---|
+| observed OTD flashes | 218 over 40 cells |
+| viewtime spread | 3.1% — counts compare directly |
+| against a uniform rate | χ² = 118.1 / 39 dof, p = 6.8 × 10⁻¹⁰ |
+| inland half vs coastal half | 143 vs 75 — **1.91×**, p = 4.8 × 10⁻⁶ |
+| Spearman ρ with longitude | 0.469, p = 0.0022 |
+
+The region was chosen on the hypothesis that a coast gives land–water convective contrast and therefore real spatial structure. It does, and it is significant. Had it come back flat, the bake would have printed "decorative" and the source notes would have said so — the gate exists to be able to fail.
+
+### Benchmark C: coverage that needs two towers
+
+A single tower gives a fix; two give an intersection. At the shipped defaults (james-bay, 15 km confirmation radius, 13,676 demand points, 1.41 km stride):
+
+| rule | risk-driven | uniform grid | Δ at the budget | grid takes the lead at |
+|---|---:|---:|---:|---:|
+| one tower in range | 77.3% | 78.8% | −1.4 pp | 88 towers |
+| two towers in range | 10.9% | 7.0% | **+3.9 pp** | never, in this range |
+
+Same 111 towers, same demand points, one rule changed, and the sign of the margin flips. A lattice spaces to avoid overlap; overlap is the product here.
+
+**The prediction was that the margin would be wider under the two-tower rule. It is not** — the peak is 3.93 pp against single coverage's 5.56 — and that comparison turned out to be meaningless, because the double-coverage margin is still climbing at the largest budget measured. The page leads with 10.9%, not with the margin: a network sized to hear every strike once triangulates about a tenth of its own region, and a favourable comparison on a small number is still a small number.
+
+The risk-driven arm is also being scored on an objective it never optimised — `greedyMinimise` minimises single coverage — so +3.9 pp is a floor.
 
 ---
 
