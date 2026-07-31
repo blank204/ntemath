@@ -250,4 +250,18 @@ describe('live weights', () => {
     expect(r.seedFlatIndex).toBe(539100)
     expect(r.seedTiesAtMax).toBe(1)
   }, 120000)
+
+  it('resolves the seed from the field, not from meta.json', () => {
+    // The committed meta.json happens to hold the same 539100 / 1 the resolver
+    // arrives at, so the test above passes either way. Poison both fields: a
+    // pipeline that read meta.seedFlatIndex / meta.seedTiesAtMax instead of
+    // calling resolveSeedIndex would report 0 / 999 here. meta.seedFlatIndex is
+    // a cross-check only and must never be read at runtime — once the weights
+    // move, the argmax moves with them and the baked index stops being it.
+    const region = losPadres()
+    const lying = { ...region, meta: { ...region.meta, seedFlatIndex: 0, seedTiesAtMax: 999 } }
+    const r = runPlacement(lying, DEFAULT_PARAMS)
+    expect(r.seedFlatIndex).toBe(539100)
+    expect(r.seedTiesAtMax).toBe(1)
+  }, 120000)
 })

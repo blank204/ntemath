@@ -64,6 +64,7 @@ async function get(f: typeof fetch, url: string): Promise<Response> {
  */
 function requireMeta(meta: RegionMeta, name: string): void {
   const required: Array<[string, unknown]> = [
+    ['box', meta.box],
     ['nx', meta.nx], ['ny', meta.ny], ['widthKm', meta.widthKm],
     ['heightKm', meta.heightKm], ['areaKm2', meta.areaKm2],
     ['fwiNorm', meta.fwiNorm], ['flammability', meta.flammability],
