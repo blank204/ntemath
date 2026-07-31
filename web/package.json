@@ -9,7 +9,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "validate:palette": "node scripts/validate_palette.js \"#4DE1C1,#8A9691\" --mode dark --surface \"#0E1F16\""
   },
   "dependencies": {
     "@deck.gl/layers": "^9.3.7",

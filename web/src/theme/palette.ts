@@ -26,4 +26,32 @@ export const PALETTE = {
 
   /** Sequential magnitude ramp for the risk raster. Deliberately low-chroma. */
   riskRamp: ['#2A2A22', '#4A4433', '#6E6144', '#958054', '#BFA06A'],
+
+  /**
+   * Data-series slots, addressed by the job each one does.
+   *
+   * This is the dataviz skill's EMPHASIS form, not a categorical palette: one
+   * accent carrying the system, one de-emphasis grey carrying the thing it is
+   * being compared against. Chart code asks for `series.pyra`, never for a
+   * hue, so a series can never be recoloured by its rank or by which filter is
+   * active.
+   *
+   * The pair is validated in docs/palette-validation.md. It passes CVD
+   * separation (deutan ΔE 15.9), the normal-vision floor (20.0) and contrast;
+   * it is waived on the dark lightness band and the chroma floor, and every
+   * step that would satisfy those two collapses the separation to ΔE 0.4–7.5.
+   * The waiver is paid for with a legend, direct labels and a table view.
+   */
+  series: {
+    pyra: '#4DE1C1',        // === meshTeal
+    baseline: '#8A9691',    // === baselineGray
+  },
+
+  /** Chart chrome. Recessive by construction: one step off the surface. */
+  chart: {
+    surface: '#0E1F16',     // === surface
+    grid: '#1B3B29',        // === surfaceRaised
+    axis: '#2C5540',
+    inkMuted: '#9FB3A8',
+  },
 } as const

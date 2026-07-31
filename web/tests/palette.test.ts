@@ -27,3 +27,41 @@ describe('palette', () => {
     }
   })
 })
+
+describe('series slots', () => {
+  it('names the two series by the job they do, not by hue', () => {
+    expect(PALETTE.series.pyra).toBe(PALETTE.meshTeal)
+    expect(PALETTE.series.baseline).toBe(PALETTE.baselineGray)
+  })
+
+  it('keeps the reserved heat ramp out of the series slots', () => {
+    const heat = PALETTE.heat.map((c) => c.toLowerCase())
+    expect(heat).not.toContain(PALETTE.series.pyra.toLowerCase())
+    expect(heat).not.toContain(PALETTE.series.baseline.toLowerCase())
+    expect(heat).not.toContain(PALETTE.chart.grid.toLowerCase())
+    expect(heat).not.toContain(PALETTE.chart.axis.toLowerCase())
+  })
+
+  it('keeps the brand orange out of every chart token', () => {
+    const chartTokens = [
+      PALETTE.series.pyra, PALETTE.series.baseline,
+      ...Object.values(PALETTE.chart),
+    ].map((c) => c.toLowerCase())
+    expect(chartTokens).not.toContain(PALETTE.brandOrange.toLowerCase())
+  })
+
+  it('gives chart chrome its own recessive tokens', () => {
+    for (const v of Object.values(PALETTE.chart)) expect(v).toMatch(HEX)
+    // Grid and axis must not be the ink colour — recessive means recessive.
+    expect(PALETTE.chart.grid).not.toBe(PALETTE.ink)
+    expect(PALETTE.chart.axis).not.toBe(PALETTE.ink)
+  })
+
+  it('keeps the validated pair exactly as docs/palette-validation.md measured it', () => {
+    // The waiver recorded in that file is specific to these two hex values:
+    // deutan dE 15.9, normal-vision 20.0. Re-stepping either one silently
+    // would leave the site carrying a waiver for a pair it no longer ships.
+    expect(PALETTE.series.pyra).toBe('#4DE1C1')
+    expect(PALETTE.series.baseline).toBe('#8A9691')
+  })
+})
