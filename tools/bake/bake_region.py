@@ -20,8 +20,10 @@ import os
 
 import numpy as np
 
+from . import lightning
 from ._repo_import import repo_modules
 from .export_fixtures import _resolve_seed_flat_index
+from .regions import REGIONS, layer_for
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT_ROOT = os.path.abspath(
@@ -29,7 +31,6 @@ OUT_ROOT = os.path.abspath(
 )
 
 forest, hazard, plan = repo_modules("forest", "hazard", "plan")
-REGIONS = plan.REGIONS
 normalise_fwi = plan.normalise_fwi
 risk_field = plan.risk_field
 
@@ -40,7 +41,48 @@ WORLDCOVER_EPOCH = "2021"
 WORLDCOVER_SOURCE_M = 10
 
 
-def source_notes(name: str, nx: int, ny: int, firms_pad_deg: float) -> dict:
+def lightning_note(gate: dict) -> str:
+    """The provenance text for a lightning-driven region.
+
+    Every number in it is read off the measured gate report rather than
+    restated, so a re-measurement cannot leave the prose behind.
+    """
+    return (
+        "NASA LIS/OTD gridded lightning climatology, HRFC v2.3.2015 "
+        "(1995-2014), flashes per square kilometre per year. "
+        f"NATIVE RESOLUTION IS {gate['nativeDeg']:g} DEGREES -- about 55 km, "
+        f"which is {gate['cells']} observed cells across this whole box, not "
+        "the 0.1 degrees an earlier draft of the spec claimed. The "
+        "0.1-degree product is LIS-only and stops near 38 degrees of "
+        "latitude, so it does not exist here; at this latitude even the "
+        "combined product is OTD alone (1995-2000). Upsampling to the "
+        "land-cover grid is bilinear interpolation, NOT resolution: the "
+        "fine structure in the risk field comes from fuel, and anything "
+        "that reads like a per-hectare lightning map would be a lie. "
+        "THE GRADIENT WAS MEASURED BEFORE BAKING, on observed flash counts "
+        f"rather than the interpolated field: {gate['flashes']} flashes over "
+        f"{gate['cells']} cells (viewtime uniform to "
+        f"{gate['viewtimeSpreadPct']:.1f}%), chi-square {gate['chi2']:.1f} on "
+        f"{gate['dof']} degrees of freedom, p = {gate['pUniform']:.1e} "
+        "against a uniform rate; the inland half carries "
+        f"{gate['eastFlashes']:.0f} flashes to the coastal half's "
+        f"{gate['westFlashes']:.0f}, a factor of {gate['eastWestRatio']:.2f} "
+        f"(p = {gate['pEastWest']:.1e}, Spearman rho "
+        f"{gate['spearmanRho']:.2f} with longitude). The coast-to-inland "
+        "gradient is real and it is the reason this box was chosen. "
+        "The field is normalised to its own peak within the box, so 1.0 "
+        "marks the most-struck ground in THIS region and says nothing about "
+        "anywhere else. A cell reading zero was watched and saw no flash in "
+        "five years -- it is a low rate, not missing data, and with "
+        f"{gate['flashesPerCell']:.1f} flashes per cell on average the "
+        "per-cell Poisson error is around 40%. Only the regional gradient "
+        "is significant; single cells are not."
+    )
+
+
+def source_notes(name: str, nx: int, ny: int,
+                 firms_pad_deg: float | None = None,
+                 gate: dict | None = None) -> dict:
     """The provenance block published in meta.json.
 
     Kept as a pure function of the region geometry so it can be regenerated
@@ -56,16 +98,23 @@ def source_notes(name: str, nx: int, ny: int, firms_pad_deg: float) -> dict:
     # alone overstates the resolution of what the browser actually receives.
     cell_w_m = box.width_km * 1000.0 / max(nx, 1)
     cell_h_m = box.height_km * 1000.0 / max(ny, 1)
-    return {
-        "landcover": (
-            f"ESA WorldCover v200 ({WORLDCOVER_EPOCH} epoch), "
-            f"{WORLDCOVER_SOURCE_M} m native, windowed via GDAL /vsicurl. "
-            f"forest.read_landcover decimates to at most {max(nx, ny)} px on "
-            f"the long axis, so the SHIPPED grid is {nx}x{ny} -- about "
-            f"{cell_w_m:.0f} m x {cell_h_m:.0f} m per cell, not 10 m. "
-            "Class labels are the native ones; the resolution is not."
-        ),
-        "activity": (
+    layer = layer_for(name)
+    # The third term of the risk formula means opposite things either side
+    # of the lightning pivot, so name the one this region actually carries.
+    if layer == "lightning":
+        if gate is None:
+            raise RuntimeError(
+                f"{name} is a lightning region, so its source notes must "
+                "quote the measured gradient gate -- pass gate=..."
+            )
+        layer_note = {"lightning": lightning_note(gate)}
+        drive_term = "0.35*lightning"
+    else:
+        if firms_pad_deg is None:
+            raise RuntimeError(
+                f"{name} is a fire-activity region and needs firms_pad_deg"
+            )
+        layer_note = {"activity": (
             "NASA FIRMS VIIRS 375 m + MODIS 1 km; RECENCY SIGNAL ONLY - "
             "the open feeds reach back days, not years. firmsCount is "
             f"detections within firmsPadDeg ({firms_pad_deg:g} deg) of "
@@ -78,7 +127,20 @@ def source_notes(name: str, nx: int, ny: int, firms_pad_deg: float) -> dict:
             "The resulting activity field is normalised to its own peak "
             "within the box, so activity == 1.0 marks the most-active "
             "pixel in this region, not an absolute detection density."
+        )}
+        drive_term = "0.35*activity"
+    return {
+        "landcover": (
+            f"ESA WorldCover v200 ({WORLDCOVER_EPOCH} epoch), "
+            f"{WORLDCOVER_SOURCE_M} m native, windowed via GDAL /vsicurl. "
+            f"forest.read_landcover decimates to at most {max(nx, ny)} px on "
+            f"the long axis, so the SHIPPED grid is {nx}x{ny} -- about "
+            f"{cell_w_m:.0f} m x {cell_h_m:.0f} m per cell, not 10 m. "
+            "Class labels are the native ones; the resolution is not."
         ),
+        # Second, where it has always been: the third risk term's provenance,
+        # under the key naming the layer this region actually carries.
+        **layer_note,
         "weather": (
             "Canadian FWI from ERA5 via Open-Meteo, 180-day p90. "
             "NOT an operational-scale FWI and NOT comparable to the classic "
@@ -97,7 +159,7 @@ def source_notes(name: str, nx: int, ny: int, firms_pad_deg: float) -> dict:
         ),
         "riskFormula": (
             "flammability(landcover) * (0.20 + 0.45*fwiNorm + "
-            "0.35*activity), then divided by its own maximum so the "
+            f"{drive_term}), then divided by its own maximum so the "
             "field's peak is exactly 1.0 within this region. Risk "
             "values are therefore relative to this region only, NOT "
             "comparable across regions -- a 1.0 here and a 1.0 "
@@ -139,22 +201,50 @@ def bake(name: str, max_px: int = 900,
     # strict in-box count. Read the real default off the function rather
     # than hardcoding it, so this stays honest if hazard.py's default ever
     # changes.
-    firms_pad_deg = float(
-        inspect.signature(hazard.detections_in).parameters["pad_deg"].default
-    )
-    dets = hazard.fetch_firms()
-    local = hazard.detections_in(box, dets)
-    n_local = 0 if local is None else len(local)
-    # Snap the activity field to float32 BEFORE risk_field consumes it. The
-    # browser will hold activity.bin as a Float32Array and recombine risk from
-    # those exact bits; computing risk from the float64 original and narrowing
-    # only on write would leave the browser starting ~6e-8 away from what
-    # Python used, and risk_field divides by the field's own peak, so that
-    # error is global rather than local. Same ruling as the risk field itself
-    # (Plan 1, Task 6): the reference computes on the values the consumer holds.
-    activity64 = hazard.activity_field(box, dets, classes.shape)
-    activity32 = np.ascontiguousarray(activity64, dtype="<f4")
-    activity = activity32.astype(np.float64)
+    layer = layer_for(name)
+    gate = None
+    firms_pad_deg = None
+    n_local = None
+    if layer == "lightning":
+        # THE GATE, and it runs before the field is built rather than after,
+        # because its whole purpose is to be able to say "this layer is
+        # decorative" out loud. It measures observed flash counts in the
+        # native cells; the field below is an interpolation of those, and
+        # interpolating cannot add significance.
+        bbox = (box.west, box.south, box.east, box.north)
+        gate = lightning.gradient_report(bbox)
+        print(f"  lightning gate: {gate['flashes']} flashes over "
+              f"{gate['cells']} cells, chi2 {gate['chi2']:.1f}/"
+              f"{gate['dof']} p={gate['pUniform']:.1e}, inland/coast "
+              f"{gate['eastWestRatio']:.2f}x p={gate['pEastWest']:.1e} "
+              f"-> {gate['verdict'].upper()}")
+        if gate["verdict"] == "flat":
+            print("  WARNING: no measurable structure -- this layer is "
+                  "decorative and the source notes must say so")
+        lats, lons, rate = lightning.load_climatology()
+        activity32 = lightning.normalise(
+            lightning.sample_density(lats, lons, rate, bbox, classes.shape))
+        activity = activity32.astype(np.float64)
+    else:
+        firms_pad_deg = float(
+            inspect.signature(hazard.detections_in)
+            .parameters["pad_deg"].default
+        )
+        dets = hazard.fetch_firms()
+        local = hazard.detections_in(box, dets)
+        n_local = 0 if local is None else len(local)
+        # Snap the activity field to float32 BEFORE risk_field consumes it.
+        # The browser holds this layer as a Float32Array and recombines risk
+        # from those exact bits; computing risk from the float64 original and
+        # narrowing only on write would leave the browser starting ~6e-8 away
+        # from what Python used, and risk_field divides by the field's own
+        # peak, so that error is global rather than local. Same ruling as the
+        # risk field itself (Plan 1, Task 6): the reference computes on the
+        # values the consumer holds. lightning.normalise above returns
+        # float32 for exactly the same reason.
+        activity64 = hazard.activity_field(box, dets, classes.shape)
+        activity32 = np.ascontiguousarray(activity64, dtype="<f4")
+        activity = activity32.astype(np.float64)
 
     # Same date window plan_region uses: end = today - 7d, start = end - 180d
     # -- unless the caller pins fwi_start/fwi_end/fwi_value, mirroring
@@ -174,8 +264,13 @@ def bake(name: str, max_px: int = 900,
     fwi = (float(fwi_value) if fwi_value is not None else
            float(hazard.peak_fwi_for_points([(lon0, lat0)], start, end)[0]))
     fwi_norm = normalise_fwi(fwi)
-    print(f"  FIRMS within {firms_pad_deg:g} deg of box: {n_local}   "
-          f"FWI p90 ({start}..{end}): {fwi:.1f}")
+    if layer == "lightning":
+        print(f"  lightning {gate['rateMin']:.2f}..{gate['rateMax']:.2f} "
+              f"flashes/km2/yr across {gate['cells']} native cells   "
+              f"FWI p90 ({start}..{end}): {fwi:.1f}")
+    else:
+        print(f"  FIRMS within {firms_pad_deg:g} deg of box: {n_local}   "
+              f"FWI p90 ({start}..{end}): {fwi:.1f}")
 
     risk = risk_field(classes, activity, fwi_norm)
 
@@ -257,11 +352,21 @@ def bake(name: str, max_px: int = 900,
         raise RuntimeError(f"class codes out of uint8 range for {name}")
     classes8 = np.ascontiguousarray(classes.astype(np.uint8))
     classes8.tofile(os.path.join(out_dir, "classes.bin"))
-    activity32.tofile(os.path.join(out_dir, "activity.bin"))
+    # The layer's filename says what it holds. A lightning region shipping a
+    # file called activity.bin would be one rename away from the browser
+    # quietly labelling strike density as fire detections.
+    layer_file = "lightning.bin" if layer == "lightning" else "activity.bin"
+    activity32.tofile(os.path.join(out_dir, layer_file))
 
     ny, nx = risk32.shape
     meta = {
         "name": name,
+        # Which layer drives the third risk term, and the file holding it.
+        # The browser reads these rather than assuming, because "where
+        # ignition is likely" and "where fire has recently been" are
+        # opposite claims wearing the same array shape.
+        "layer": layer,
+        "layerFile": layer_file,
         "box": [box.west, box.south, box.east, box.north],
         "nx": int(nx), "ny": int(ny),
         "widthKm": float(box.width_km), "heightKm": float(box.height_km),
@@ -280,8 +385,11 @@ def bake(name: str, max_px: int = 900,
         # lookup, but then filters on conf >= min_conf (hazard.py:138)
         # BEFORE the kernel runs, so this is an UPPER BOUND on what feeds
         # the model, not the quantity the model integrates over.
-        "firmsCount": int(n_local),
-        "firmsPadDeg": firms_pad_deg,
+        **({"firmsCount": int(n_local), "firmsPadDeg": firms_pad_deg}
+           if layer != "lightning" else
+           # The gate report in full, so the page can quote a measurement
+           # instead of a claim, and so a re-bake that moves it is visible.
+           {"lightningGate": gate}),
         "classMix": {str(k): float(v)
                      for k, v in forest.class_mix(classes).items()},
         "seedFlatIndex": seed_flat_index,
@@ -302,7 +410,8 @@ def bake(name: str, max_px: int = 900,
         "budgetHi": int(inspect.signature(plan.plan_region)
                         .parameters["budget_hi"].default),
         "generated": dt.datetime.now(dt.timezone.utc).isoformat(),
-        "sourceNotes": source_notes(name, int(nx), int(ny), firms_pad_deg),
+        "sourceNotes": source_notes(name, int(nx), int(ny),
+                                    firms_pad_deg, gate),
     }
     with open(os.path.join(out_dir, "meta.json"), "w", encoding="utf-8") as fh:
         json.dump(meta, fh, indent=1)
@@ -322,8 +431,12 @@ def refresh_notes(name: str) -> str:
     path = os.path.join(OUT_ROOT, name, "meta.json")
     with open(path, encoding="utf-8") as fh:
         meta = json.load(fh)
+    # Read the layer's own provenance back out of the file rather than
+    # re-measuring: a notes refresh must not be able to move a number.
+    pad = meta.get("firmsPadDeg")
     meta["sourceNotes"] = source_notes(
-        name, int(meta["nx"]), int(meta["ny"]), float(meta["firmsPadDeg"])
+        name, int(meta["nx"]), int(meta["ny"]),
+        None if pad is None else float(pad), meta.get("lightningGate")
     )
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(meta, fh, indent=1)
