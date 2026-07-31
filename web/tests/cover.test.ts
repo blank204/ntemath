@@ -62,7 +62,11 @@ describe('greedyMinimise', () => {
 
   it('honours maxNodes', () => {
     const r = greedyMinimise(candXY, demandXY, demandW, f.radius_km, f.target, 5)
-    expect(r.chosen.length).toBeLessThanOrEqual(5)
+    // toEqual against the fixture's own first-5-of-81 prefix pins both the
+    // limit semantics (stop at exactly 5) and greedy's prefix property
+    // (limiting maxNodes doesn't change earlier picks) -- toBeLessThanOrEqual
+    // alone would also pass for an empty array.
+    expect(r.chosen).toEqual(f.chosen.slice(0, 5))
   })
 
   it('returns nothing for empty inputs', () => {
@@ -70,6 +74,28 @@ describe('greedyMinimise', () => {
     const r = greedyMinimise(empty, demandXY, demandW, f.radius_km, f.target)
     expect(r.chosen).toEqual([])
     expect(r.coveredFraction).toBe(0)
+  })
+
+  it('reaches a genuinely reachable target (the production exit path)', () => {
+    // Every other greedyMinimise case here uses target=0.95, which this pool
+    // cannot reach (see the ceiling test above) -- so none of them ever take
+    // the `got / total >= target` branch of the while-loop guard, even
+    // though that is the exit path a real, in-range run takes (a verified
+    // Los Padres run reached 561 nodes at 0.950 coverage). target_low=0.5 is
+    // reachable with this same candidate/demand pool, so this exercises that
+    // branch and pins the exact chosen sequence up to the point it fires.
+    const r = greedyMinimise(candXY, demandXY, demandW, f.radius_km, f.target_low)
+    expect(r.chosen).toEqual(f.chosen_low)
+    expect(r.coveredFraction).toBeGreaterThanOrEqual(f.target_low - 1e-12)
+    expect(r.chosen.length).toBeLessThan(f.chosen.length)
+  })
+
+  it('reports the same per-node marginal gain at every step', () => {
+    const r = greedyMinimise(candXY, demandXY, demandW, f.radius_km, f.target)
+    expect(r.perNodeGain.length).toBe(f.per_node_gain.length)
+    for (let i = 0; i < f.per_node_gain.length; i++) {
+      expect(Math.abs(r.perNodeGain[i] - f.per_node_gain[i])).toBeLessThan(1e-9)
+    }
   })
 })
 

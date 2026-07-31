@@ -356,6 +356,14 @@ def cover_fixture() -> None:
     cov = greedy_minimise(cand, dxy, dw, radius_km=2.0, target=0.95)
     full_w, full_a = coverage_of(cand, dxy, dw, radius_km=2.0)
 
+    # target=0.95 is unreachable with this candidate pool (full_w caps at
+    # ~0.8467), so that run only ever exits by exhausting the CELF heap --
+    # the target-reached branch of greedy_minimise's while-loop guard is
+    # never taken. Run the same cand/dxy/dw a second time with a target this
+    # pool *can* reach, so the fixture also exercises (and the TS port must
+    # also reproduce) the exit path production actually takes.
+    cov_lo = greedy_minimise(cand, dxy, dw, radius_km=2.0, target=0.5)
+
     _write("cover.json", {
         "ny": ny, "nx": nx, "width_km": w_km, "height_km": h_km,
         "stride": 2, "radius_km": 2.0, "target": 0.95, "seed": 5,
@@ -369,7 +377,11 @@ def cover_fixture() -> None:
         "chosen": [int(i) for i in cov.chosen],
         "covered_fraction": float(cov.covered_fraction),
         "area_fraction": float(cov.area_fraction),
+        "per_node_gain": [float(x) for x in cov.per_node_gain],
         "full_pool_coverage": [float(full_w), float(full_a)],
+        "target_low": 0.5,
+        "chosen_low": [int(i) for i in cov_lo.chosen],
+        "covered_fraction_low": float(cov_lo.covered_fraction),
     })
 
 
