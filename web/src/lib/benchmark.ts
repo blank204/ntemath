@@ -21,17 +21,34 @@ export interface BenchmarkResult {
   atBudget: BenchmarkPoint
   /** Where the risk-driven arm leads by the most. */
   bestMargin: BenchmarkPoint
-  /** The smallest budget at which the uniform grid takes the lead, if any. */
+  /**
+   * The smallest budget at which the uniform grid takes the lead, resolved to
+   * a single node by bisection — NOT merely the first sampled budget with a
+   * negative margin, which would report the ladder's resolution as a finding.
+   */
   crossoverNodes: number | null
+  /**
+   * The two sampled budgets the crossover was bisected between. Carried so the
+   * copy can say what was measured and what was interpolated.
+   */
+  crossoverBracket: [number, number] | null
   /** Scoring stride in km. Every coverage number shown must state this. */
   strideKm: number
   demandCount: number
   detectKm: number
 }
 
-const EMPTY: BenchmarkPoint = {
+/**
+ * How many budgets the displayed curve samples. It is the chart's resolution,
+ * not the benchmark's: `crossoverNodes` is bisected between samples, so
+ * raising this buys curve smoothness (one uniformGrid + two coverageOf each)
+ * and not accuracy in the headline numbers.
+ */
+export const CURVE_STEPS = 14
+
+const EMPTY: BenchmarkPoint = Object.freeze({
   requested: 0, scored: 0, pyra: 0, uniform: 0, deltaPP: 0,
-}
+})
 
 /**
  * The node budgets to score. Roughly geometric so the small-budget end — where
@@ -61,14 +78,32 @@ export function benchmarkBudgets(maxNodes: number, steps = 14): number[] {
  * risk-driven placement cover, and how much does a uniform grid cover?
  *
  * Swept across node budgets rather than reported at one, because the answer
- * changes sign. Measured on Los Padres at detect 2 km: the risk-driven arm
- * leads by up to 3.6 pp around 170 nodes and trails by 4.2 pp at the 572-node
- * saturation budget, crossing near 270. Reporting either end alone would be a
- * cherry-pick.
+ * changes sign. Reporting either end alone would be a cherry-pick.
+ *
+ * Measured on the committed Los Padres rasters — 572 nodes, 31,045 demand
+ * points, 0.366 km scoring stride, detect 2.0 km. Coverage is risk-weighted:
+ *
+ *   requested  scored    pyra  uniform    delta
+ *          50      45  12.69%   10.96%   +1.74
+ *         132     124  33.44%   29.89%   +3.55   <- widest lead
+ *         215     193  49.46%   46.57%   +2.88
+ *         351     311  71.51%   74.49%   -2.98
+ *         572     526  92.76%   96.93%   -4.17  <- the run's own budget
+ *
+ * The lead changes hands at 285 nodes, bisected between the 215 and 351
+ * samples. Re-measure these figures whenever the rasters or the ladder move;
+ * the copy layer quotes them.
  *
  * The sweep costs one extra `uniformGrid` per budget and nothing at all for
  * the risk-driven arm: `greedyMinimise` selects in descending marginal gain
  * and never revisits, so its first N nodes ARE the N-node solution.
+ *
+ * That prefix is the first N nodes of a SATURATION run, and it is not the same
+ * network as `runPlacement(..., budgetMode: 'fixed', fixedNodes: N)` — a fixed
+ * budget re-spaces the candidate pool through `budgetSpacing`. Sharing one
+ * pool across the whole curve is what makes the sweep a like-for-like
+ * comparison, but the Lab must not imply that dialling `fixed` to N reproduces
+ * the curve's N-node point.
  *
  * The uniform arm is given the burnable mask on purpose. That hands the
  * baseline part of the model's own input and makes it stronger — measured, it
@@ -96,15 +131,14 @@ export function runBenchmark(args: {
     demandCount,
     detectKm,
   }
-  if (total === 0 || demandCount === 0) {
-    return {
-      points: [], atBudget: EMPTY, bestMargin: EMPTY,
-      crossoverNodes: null, ...base,
-    }
+  const empty = {
+    points: [], atBudget: EMPTY, bestMargin: EMPTY,
+    crossoverNodes: null, crossoverBracket: null, ...base,
   }
+  if (total === 0 || demandCount === 0) return empty
 
-  const points: BenchmarkPoint[] = []
-  for (const requested of benchmarkBudgets(total)) {
+  /** Score one budget: both arms, capped to their common realised count. */
+  function scoreAt(requested: number): BenchmarkPoint | null {
     // The first `requested` nodes are the `requested`-node greedy solution.
     const pyraArm = nodes.slice(0, 2 * requested)
     const gridArm = uniformGrid(widthKm, heightKm, requested, mask)
@@ -113,30 +147,60 @@ export function runBenchmark(args: {
     // same realised count", which is what this does — not "identical count".
     const [a, b] = capToCommonCount(pyraArm, gridArm)
     const scored = a.length / 2
-    if (scored === 0) continue
+    if (scored === 0) return null
     const [pyra] = coverageOf(a, demand.xy, demand.w, detectKm)
     const [uniform] = coverageOf(b, demand.xy, demand.w, detectKm)
-    points.push({
-      requested, scored, pyra, uniform,
-      deltaPP: 100 * (pyra - uniform),
-    })
+    return { requested, scored, pyra, uniform, deltaPP: 100 * (pyra - uniform) }
   }
 
-  if (points.length === 0) {
-    return {
-      points: [], atBudget: EMPTY, bestMargin: EMPTY,
-      crossoverNodes: null, ...base,
-    }
+  const points: BenchmarkPoint[] = []
+  for (const requested of benchmarkBudgets(total, CURVE_STEPS)) {
+    const p = scoreAt(requested)
+    if (p !== null) points.push(p)
   }
+
+  if (points.length === 0) return empty
 
   const atBudget = points[points.length - 1]
   const bestMargin = points.reduce((best, p) => (p.deltaPP > best.deltaPP ? p : best))
-  const crossing = points.find((p) => p.deltaPP < 0)
-  return {
-    points,
-    atBudget,
-    bestMargin,
-    crossoverNodes: crossing ? crossing.requested : null,
-    ...base,
+
+  // Where does the lead change hands for good? Take the LAST budget at which
+  // the risk-driven arm still leads, not the first at which it does not: a
+  // single noisy negative down at one or two nodes would otherwise be reported
+  // as the crossover of a 572-node curve.
+  let lastLead = -1
+  for (let i = 0; i < points.length; i++) if (points[i].deltaPP >= 0) lastLead = i
+
+  let crossoverNodes: number | null = null
+  let crossoverBracket: [number, number] | null = null
+
+  if (lastLead === points.length - 1) {
+    // The risk-driven arm still leads at the largest budget measured: no
+    // crossover exists within the swept range.
+    crossoverNodes = null
+  } else if (lastLead === -1) {
+    // The grid leads even at the smallest budget measured. The crossover is at
+    // or below that, and there is nothing smaller to bisect against.
+    crossoverNodes = points[0].requested
+    crossoverBracket = [0, points[0].requested]
+  } else {
+    // Bisect between the last leading sample and the first trailing one, so
+    // the reported crossover is a property of the curve rather than of the
+    // ladder's resolution. The pyra arm is free at every probe (it is still
+    // just a prefix); each step costs one uniformGrid and two coverageOf.
+    let lo = points[lastLead].requested       // pyra leads here
+    let hi = points[lastLead + 1].requested   // grid leads here
+    crossoverBracket = [lo, hi]
+    while (hi - lo > 1) {
+      const mid = Math.floor((lo + hi) / 2)
+      const p = scoreAt(mid)
+      // An unscoreable budget cannot be the answer; step past it.
+      if (p === null) { lo = mid; continue }
+      if (p.deltaPP < 0) hi = mid
+      else lo = mid
+    }
+    crossoverNodes = hi
   }
+
+  return { points, atBudget, bestMargin, crossoverNodes, crossoverBracket, ...base }
 }

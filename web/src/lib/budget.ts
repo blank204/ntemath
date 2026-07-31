@@ -15,9 +15,11 @@ const BUDGET_MAX = 1.1
 const UNREACHABLE_TARGET = 1.01
 
 /**
- * numpy's `round` is round-half-to-even; JavaScript's `Math.round` is
- * half-up. `auto_budget` rounds a quotient by 140, which lands exactly on a
- * half often enough to matter, so the difference is a whole node.
+ * `plan.auto_budget` rounds with the Python BUILTIN `round` (plan.py:172 —
+ * `raw` is a plain float, so this is not np.round, though both use the same
+ * rule). It is round-half-to-even; JavaScript's `Math.round` is half-up.
+ * `auto_budget` rounds a quotient by 140, which lands exactly on a half often
+ * enough to matter, so the difference is a whole node.
  *
  * `Math.round` breaks ties towards +Infinity, so on an exact half it always
  * returns the UPPER of the two neighbours — 1 for 0.5, and -1 for -1.5. The

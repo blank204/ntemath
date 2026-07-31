@@ -294,20 +294,45 @@ describe('budget modes on the real region', () => {
     // risk.test.ts holds this quantity to.
     expect(r.meanRiskBurnable).toBeCloseTo(0.5062295198440552, 6)
 
-    // What actually matters is that the gap cannot move the budget. Both
-    // means land 0.35 of a node away from the nearest rounding boundary, so
-    // the node count is the same integer either way. This assertion is the
-    // one to keep if the tolerance above ever has to move.
+    // What actually matters is that the gap cannot move the budget, and the
+    // margin is the distance to the nearest ROUNDING boundary — the nearest
+    // half-integer, not the nearest integer. raw is 18.3468, so the boundary
+    // at 18.5 is 0.153 away: seven orders of magnitude more than the 1.1e-8
+    // disagreement. Asserted rather than claimed, so the number cannot rot.
+    const raw = (r.burnKm2 * r.meanRiskBurnable) / 140
+    expect(Math.abs(raw - (Math.floor(raw) + 0.5))).toBeGreaterThan(0.1)
     expect(autoBudget(r.burnKm2, r.meanRiskBurnable, 140, 6, 40))
       .toBe(autoBudget(5073.900713469231, 0.5062295198440552, 140, 6, 40))
   }, 120000)
 
-  it('auto mode places the 18 nodes the library would, and says so', () => {
+  it('reproduces the Python reference run in the budgeted regime too', () => {
+    // Hand-transcribed from `python -m tools.bake.verify_parity`, the "auto"
+    // block. Plan 1 only ever pinned the saturation regime, so auto and fixed
+    // rested on two figures measured once by hand; the reference now
+    // regenerates them and the network they imply. As with the saturation
+    // PARITY block above: if this fails, find the divergence — never
+    // re-baseline it from the TypeScript output.
+    const AUTO = {
+      nBudget: 18,
+      rMinKm: 7.555222235416298,
+      rMaxKm: 18.468321019906508,
+      candidateCount: 23,
+      nodeCount: 18,
+      coveredFraction: 0.044221103024324415,
+      areaFraction: 0.043420840715090996,
+      chosenSha256: 'e313f3b5516d40ad195cecd97a60a1fc9e06c94a21bad10933d32518d6eca48c',
+    }
     const r = runPlacement(losPadres(), { ...DEFAULT_PARAMS, budgetMode: 'auto' })
-    expect(r.budget.maxNodes).toBe(18)
-    expect(r.nodeCount).toBeLessThanOrEqual(18)
-    // The cap binds, not the coverage target: 18 nodes cannot reach 95%.
-    expect(r.coveredFraction).toBeLessThan(0.95)
+    expect(r.budget.maxNodes).toBe(AUTO.nBudget)
+    expect(r.budget.rMinKm).toBe(AUTO.rMinKm)
+    expect(r.budget.rMaxKm).toBe(AUTO.rMaxKm)
+    expect(r.candidateCount).toBe(AUTO.candidateCount)
+    expect(r.nodeCount).toBe(AUTO.nodeCount)
+    expect(r.coveredFraction).toBe(AUTO.coveredFraction)
+    expect(r.areaFraction).toBe(AUTO.areaFraction)
+    expect(createHash('sha256').update(r.chosen.join(',')).digest('hex'))
+      .toBe(AUTO.chosenSha256)
+    // The cap binds, not the coverage target: 18 nodes watch 4.4% of the risk.
     expect(r.budget.greedyTarget).toBe(1.01)
   }, 120000)
 })

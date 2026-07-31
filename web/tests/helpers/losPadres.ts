@@ -2,8 +2,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import type { RegionData, RegionMeta } from '../../src/lib/loadRegion'
-import type { PlaceParams } from '../../src/lib/pipeline'
-import { burnableMaskOf, DEFAULT_WEIGHTS } from '../../src/lib/risk'
+import { burnableMaskOf } from '../../src/lib/risk'
 
 const DIR = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -40,17 +39,8 @@ export function loadLosPadres(): RegionData {
 }
 
 /**
- * The Lab's shipped defaults, as the tests need them. The weights are spread
- * from risk.ts's DEFAULT_WEIGHTS — plan.risk_field's own literals, never
- * restated — and the budget mode is saturation, so spacing is derived.
+ * The Lab's shipped defaults — re-exported, not restated. A second copy would
+ * let someone change the shipped `detectKm` while the benchmark tests kept
+ * passing at 2.0, and the site would ship a curve nobody measured.
  */
-export const DEFAULT_TEST_PARAMS: PlaceParams = {
-  seed: 7,
-  detectKm: 2.0,
-  target: 0.95,
-  demandStride: 4,
-  budgetMode: 'saturation',
-  fixedNodes: 100,
-  spacingOverride: null,
-  ...DEFAULT_WEIGHTS,
-}
+export { DEFAULT_PARAMS as DEFAULT_TEST_PARAMS } from '../../src/state/useModelStore'

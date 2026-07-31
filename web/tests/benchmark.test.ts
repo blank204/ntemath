@@ -84,16 +84,43 @@ describe('runBenchmark on the real region', () => {
 
   it('reproduces the measured curve, including the crossover', () => {
     // Measured against the committed rasters: the risk-driven arm leads at
-    // small budgets, the uniform grid leads at saturation, and they cross at
-    // roughly 270 nodes. If these move, the site's headline claim moved with
-    // them — re-measure and rewrite the copy, do not adjust the assertion.
+    // small budgets by up to +3.55 pp at 132 nodes, the uniform grid leads at
+    // the 572-node saturation budget by 4.17 pp, and the lead changes hands at
+    // 285. If these move, the site's headline claim moved with them —
+    // re-measure and rewrite the copy, do not adjust the assertion.
+    //
+    // 285 is bisected from the committed rasters. The plan's prose says "about
+    // 270" from a coarser sweep taken before Task 1 re-baked risk.bin; 285 is
+    // the measurement, and the copy must follow the measurement.
     const { result } = real()
-    expect(result.bestMargin.deltaPP).toBeGreaterThan(2)
-    expect(result.bestMargin.requested).toBeLessThan(300)
-    expect(result.crossoverNodes).not.toBeNull()
-    expect(result.crossoverNodes!).toBeGreaterThan(150)
-    expect(result.crossoverNodes!).toBeLessThan(400)
-    expect(result.atBudget.deltaPP).toBeLessThan(0)
+    expect(result.bestMargin.deltaPP).toBeCloseTo(3.5488421301039463, 9)
+    expect(result.bestMargin.requested).toBe(132)
+    expect(result.atBudget.deltaPP).toBeCloseTo(-4.174842118917466, 9)
+    expect(result.crossoverNodes).toBe(285)
+    expect(result.crossoverBracket).toEqual([215, 351])
+  }, 300000)
+
+  it('bisects the crossover instead of reporting a ladder sample', () => {
+    // The ladder samples 215 (pyra still ahead) and 351 (grid ahead), so a
+    // `points.find(p => p.deltaPP < 0)` would report 351 as the crossover of a
+    // curve that actually turns at 270 — the ladder's resolution dressed up as
+    // a finding. Prove the reported node is a real sign change by scoring the
+    // two budgets either side of it directly.
+    const { region, placed, d, result } = real()
+    const n = result.crossoverNodes!
+    expect(result.points.some((p) => p.requested === n)).toBe(false)
+
+    const deltaAt = (requested: number) => {
+      const grid = uniformGrid(
+        region.meta.widthKm, region.meta.heightKm, requested, region.mask,
+      )
+      const [a, b] = capToCommonCount(placed.nodes.slice(0, 2 * requested), grid)
+      const pyra = coverageOf(a, d.xy, d.w, DEFAULT_TEST_PARAMS.detectKm)[0]
+      const uniform = coverageOf(b, d.xy, d.w, DEFAULT_TEST_PARAMS.detectKm)[0]
+      return 100 * (pyra - uniform)
+    }
+    expect(deltaAt(n)).toBeLessThan(0)
+    expect(deltaAt(n - 1)).toBeGreaterThanOrEqual(0)
   }, 300000)
 
   it('takes the FIRST n nodes, which is what makes the sweep legitimate', () => {
