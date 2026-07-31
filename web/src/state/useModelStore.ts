@@ -19,8 +19,8 @@ interface ModelState {
 }
 
 /**
- * UI defaults. rMinKm/rMaxKm are documented UI choices derived from the
- * detection radius — NOT a reproduction of plan.py's derivation. maxNodes is
+ * UI defaults. rMinKm/rMaxKm reproduce plan.py:207-208's saturation-regime
+ * derivation verbatim (detectKm * 0.55 and detectKm * 1.30). maxNodes is
  * null, i.e. saturation: node count is whatever the coverage target requires.
  */
 export const DEFAULT_PARAMS: PlaceParams = {

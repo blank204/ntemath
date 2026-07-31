@@ -5,6 +5,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { useModelStore } from '../state/useModelStore'
 import { loadRegion } from '../lib/loadRegion'
 import { riskToImage, riskLayer, nodesLayer } from './layers'
+import { fitWhenStyleReady, type CameraTarget } from './camera'
 import { PALETTE } from '../theme/palette'
 
 const KEY = import.meta.env.VITE_MAPTILER_KEY
@@ -20,6 +21,9 @@ export function MapRoot() {
   const ref = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const overlayRef = useRef<MapboxOverlay | null>(null)
+  // Bounds that arrived before the style finished loading, plus the handler
+  // waiting to apply them. See fitRegion() below.
+  const pendingFitRef = useRef<(() => void) | null>(null)
   const [image, setImage] = useState<ImageBitmap | null>(null)
 
   const { regionName, region, result, setRegion, setError } = useModelStore()
@@ -39,13 +43,35 @@ export function MapRoot() {
       center: [-119.85, 34.7],
       zoom: 8.4,
       pitch: 0,
-      attributionControl: { compact: true },
+      attributionControl: {
+        compact: true,
+        // ESA WorldCover is CC BY 4.0 and the licence requires attribution
+        // wherever the derived product is shown. The risk raster on this map
+        // IS a derived product, so the credit belongs on the map itself, not
+        // only in a panel the viewer may never open.
+        customAttribution:
+          'Land cover: <a href="https://esa-worldcover.org/" target="_blank" ' +
+          'rel="noreferrer">ESA WorldCover</a> (CC BY 4.0) · ' +
+          'Fire detections: NASA FIRMS · Weather: ERA5 / Open-Meteo',
+      },
     })
     const overlay = new MapboxOverlay({ interleaved: false, layers: [] })
     map.addControl(overlay as unknown as maplibregl.IControl)
     mapRef.current = map
     overlayRef.current = overlay
   }, [])
+
+  // Gate camera framing on style readiness — see fitWhenStyleReady.
+  const fitRegion = (box: [number, number, number, number]) => {
+    const map = mapRef.current
+    if (!map) return
+    const [w, s, e, n] = box
+    pendingFitRef.current = fitWhenStyleReady(
+      map as unknown as CameraTarget,
+      [[w, s], [e, n]],
+      pendingFitRef.current,
+    )
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -57,8 +83,7 @@ export function MapRoot() {
         if (cancelled) return
         setRegion(r)
         setImage(await createImageBitmap(riskToImage(r.risk, r.mask)))
-        const [w, s, e, n] = r.meta.box
-        mapRef.current?.fitBounds([[w, s], [e, n]], { padding: 40, duration: 800 })
+        fitRegion(r.meta.box)
       })
       .catch((err) => {
         if (cancelled) return
