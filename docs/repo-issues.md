@@ -16,7 +16,9 @@ Ordered by how much damage it does if left alone.
 ### 1.1 `auto_budget` makes the default run report 4.5% coverage — [measured]
 **Where:** `plan.py: auto_budget`, `budget_hi = 40`
 
-The default `budget="auto"` clamps node count to 40. Los Padres at `detect_km=2.0` needs ~529 nodes for full coverage, so the default run sites 18 and honestly reports **4.5% risk-weighted coverage**.
+The default `budget="auto"` sites **18** nodes on Los Padres and honestly reports **4.5% risk-weighted coverage**, against the ~529 the region needs at `detect_km = 2.0`.
+
+*(Correction, 2026-07-31: the `hi = 40` clamp is **not** what binds. `auto_budget` returns `area_km2 × mean_risk / KM2_PER_NODE`, and on Los Padres that raw value is already about 18 — the clamp never engages. So raising `hi` would change nothing; `KM2_PER_NODE` is the parameter that matters.)*
 
 The algorithm is correct — this is a demo-scale clamp, not a bug in the maths. But it means the out-of-the-box invocation makes the project look broken. Saturation mode (`budget=None`) reaches **0.950 coverage with 561 nodes from 928 candidates**.
 
