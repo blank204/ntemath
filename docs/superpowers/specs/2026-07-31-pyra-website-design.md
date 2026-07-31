@@ -181,7 +181,27 @@ Controls are the model's **actual** parameters, not the ones in the original pit
 
 **Fairness is stated on screen:** identical node count, identical region, identical ignition set. An unfair benchmark is worse than no benchmark.
 
-### The benchmark
+### Two benchmarks, not one — and the cheap one is the reliable one
+
+Added 2026-07-31, after establishing that the fire model is California-only.
+
+**Benchmark A — coverage at equal node count. Global, cheap, always available.**
+
+> At the same node count, over the same region and the same demand points: the risk-driven placement covers **X%** of risk-weighted burnable demand; a uniform grid covers **Y%**.
+
+This needs no fire simulation whatsoever — `coverageOf` already computes it, both arms already exist, and `capToCommonCount` already guarantees the node counts match. It is valid in **all eight regions**, it is cheap enough to recompute on every slider move, and it is a genuine head-to-head rather than a demonstration.
+
+**This is the headline.** It should be built first and it should never be absent.
+
+**Benchmark B — detection time. Los Padres only, expensive, an upgrade.**
+
+> Across 100 ignitions, median time to detection: **N minutes** versus **M minutes**.
+
+More dramatic and more intuitive, but it requires simulating fire spread, which restricts it to where the fire model is validated and carries real compute cost. Treat it as an enhancement layered on top of A, not as a dependency of it.
+
+**Why this ordering matters:** if B turns out infeasible or too slow, the Lab still ships a real, defensible benchmark. Building B first and discovering its cost late would leave the site with no comparison at all.
+
+### The detection-time benchmark (B)
 A single ignition producing "4 min vs 19 min" is an anecdote, and any judge with a science background will ask whether the click was lucky.
 
 **Primary result: `Run 100 ignitions`.** The same 100 ignition points are fed to both strategies and rendered as **two dot strips with median markers**, one row per strategy. A distribution, not a story. Runs in a worker with results streaming in progressively — the page never freezes.
