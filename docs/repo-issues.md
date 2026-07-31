@@ -20,6 +20,8 @@ The default `budget="auto"` clamps node count to 40. Los Padres at `detect_km=2.
 
 The algorithm is correct — this is a demo-scale clamp, not a bug in the maths. But it means the out-of-the-box invocation makes the project look broken. Saturation mode (`budget=None`) reaches **0.950 coverage with 561 nodes from 928 candidates**.
 
+*(That 928/561 is `plan_region` as you run it, i.e. with `numpy.random.default_rng` / PCG64. The website runs the same algorithm through a different, portable generator and gets 927 → 572 at 0.9501 — two equally valid blue-noise draws, not a discrepancy. Quote whichever matches the tool you are describing.)*
+
 **Suggested fix:** default to saturation, or make the clamp loud (`print` a warning when the budget caps below what the target requires). Also reconsider `KM2_PER_NODE` and the `lo`/`hi` bounds — a "sentinel network" mode is a legitimate idea, but it should be opt-in and clearly labelled as *not* attempting coverage.
 
 ### 1.2 `place.py`'s seeding is not reproducible — [measured]

@@ -38,7 +38,7 @@ The team repo contains two substantial Python systems, both real and both workin
 - `place.py` — variable-radius Poisson-disk blue noise, `r(x) = r_max − (r_max − r_min)·risk`, then greedy set cover
 - `plan.py` / `world.py` — bbox → plan; global sweep with cost estimate
 
-Verified run, Los Padres, `detect_km = 2.0`, saturation mode: 928 blue-noise candidates → **561 nodes at 0.950 risk-weighted coverage**, a 40% cut. ~102 nodes/1000 km².
+Verified run, Los Padres, `detect_km = 2.0`, saturation mode: 928 blue-noise candidates → **561 nodes at 0.950 risk-weighted coverage**, a 40% cut. ~102 nodes/1000 km². *(That is `plan_region` with numpy's PCG64. The site runs the identical algorithm through a portable shared generator and gets **927 → 572 at 0.9501** — a different valid draw, verified bit-identical between Python and TypeScript. Use the site's figures on the site.)*
 
 **Known defect (upstream, not the website's):** default `budget="auto"` clamps to 40 nodes, so the default run reports 4.5% coverage on a region needing ~529 nodes. The algorithm is correct; the default is a demo clamp. The site must run saturation mode, not the default.
 
@@ -186,7 +186,7 @@ A single ignition producing "4 min vs 19 min" is an anecdote, and any judge with
 
 **Primary result: `Run 100 ignitions`.** The same 100 ignition points — drawn from real FIRMS historical detections for that region — are fed to both strategies and rendered as **two dot strips with median markers**, one row per strategy. A distribution, not a story. Runs in a worker with results streaming in progressively — the page never freezes.
 
-**A second comparison the code already computes for free:** blue noise alone versus blue noise + greedy set cover. On Los Padres that's 928 → 561 nodes for the same 95% coverage — a 40% hardware saving from the minimisation stage alone. That is a clean, quantified engineering result and it should be surfaced as its own stat tile.
+**A second comparison the code already computes for free:** blue noise alone versus blue noise + greedy set cover. On Los Padres that's **927 → 572 nodes** for the same 95% coverage — a **38% hardware saving** from the minimisation stage alone, verified bit-identical between the Python and the browser. That is a clean, quantified engineering result and it should be surfaced as its own stat tile.
 
 **Secondary, live single-run readouts:** a KPI row showing detection time per strategy plus the delta, and an event log in plain language:
 

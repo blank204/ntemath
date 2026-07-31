@@ -2451,7 +2451,9 @@ r_max_km = detect_km * 1.30
 
 The pipeline takes `rMinKm`/`rMaxKm` explicitly, and the UI supplies exactly these. Do **not** substitute other values: the candidate pool must be denser than the answer because the minimiser can only delete, and discs of radius R tile the plane only at hexagonal spacing `R*sqrt(3)`. A sparser pool leaves gaps no pruning can close, and the coverage target becomes unreachable.
 
-At `detectKm = 2.0` this gives `rMinKm = 1.1`, `rMaxKm = 2.6` — the settings that produced the verified 928 candidates → 561 nodes at 95.0% coverage.
+At `detectKm = 2.0` this gives `rMinKm = 1.1`, `rMaxKm = 2.6`. On the baked Los Padres data these settings produce **927 candidates → 572 nodes at 0.9501 coverage**, verified bit-identical between `place.py` (driven by the shared `RefRNG`) and the TypeScript port — identical candidate count, identical 572-element `chosen` sequence, identical coverage scalars.
+
+*(An earlier figure of 928 → 561 in this plan came from calling `plan_region` directly, which uses `numpy.random.default_rng` / PCG64 rather than the shared generator. Same algorithm, different random stream, equally valid draw. Do not treat the two as a discrepancy.)*
 
 - [ ] **Step 1: Write the failing test**
 
