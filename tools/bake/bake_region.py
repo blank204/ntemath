@@ -143,7 +143,16 @@ def bake(name: str, max_px: int = 900) -> str:
     dets = hazard.fetch_firms()
     local = hazard.detections_in(box, dets)
     n_local = 0 if local is None else len(local)
-    activity = hazard.activity_field(box, dets, classes.shape)
+    # Snap the activity field to float32 BEFORE risk_field consumes it. The
+    # browser will hold activity.bin as a Float32Array and recombine risk from
+    # those exact bits; computing risk from the float64 original and narrowing
+    # only on write would leave the browser starting ~6e-8 away from what
+    # Python used, and risk_field divides by the field's own peak, so that
+    # error is global rather than local. Same ruling as the risk field itself
+    # (Plan 1, Task 6): the reference computes on the values the consumer holds.
+    activity64 = hazard.activity_field(box, dets, classes.shape)
+    activity32 = np.ascontiguousarray(activity64, dtype="<f4")
+    activity = activity32.astype(np.float64)
 
     # Same date window plan_region uses: end = today - 7d, start = end - 180d.
     # peak_fwi_for_points takes a LIST OF (lon, lat) POINTS, not a box, and
@@ -158,6 +167,27 @@ def bake(name: str, max_px: int = 900) -> str:
           f"FWI p90 ({start}..{end}): {fwi:.1f}")
 
     risk = risk_field(classes, activity, fwi_norm)
+
+    # risk_field returns the already-normalised field and keeps `peak` to
+    # itself, but the browser has to reproduce that division, so recover it by
+    # recomputing the pre-normalisation product with the same weights. The
+    # assertion is the point: if this arithmetic ever drifts from
+    # plan.risk_field's, the bake fails here rather than shipping a raster the
+    # browser cannot reproduce.
+    _sig = inspect.signature(risk_field).parameters
+    W_BASE = float(_sig["w_base"].default)
+    W_WEATHER = float(_sig["w_weather"].default)
+    W_ACTIVITY = float(_sig["w_activity"].default)
+    flam = forest.flammability_field(classes)
+    drive = W_BASE + W_WEATHER * float(np.clip(fwi_norm, 0, 1)) + W_ACTIVITY * activity
+    unnormalised = flam * drive
+    risk_peak = float(unnormalised.max())
+    check = unnormalised / risk_peak if risk_peak > 0 else unnormalised
+    if not np.array_equal(check, risk):
+        raise RuntimeError(
+            "the bake's recombination no longer matches plan.risk_field -- "
+            "refusing to ship components the browser cannot reproduce"
+        )
 
     # Snap to float32 BEFORE anything else consumes it. risk.bin is float32
     # on disk and the browser's placement algorithm runs on those exact
@@ -210,6 +240,14 @@ def bake(name: str, max_px: int = 900) -> str:
     risk32.tofile(os.path.join(out_dir, "risk.bin"))
     mask8.tofile(os.path.join(out_dir, "mask.bin"))
 
+    # WorldCover codes top out at 100 (moss/lichen), so uint8 is exact. Assert
+    # it rather than assume it: a silent wraparound would remap fuel classes.
+    if int(classes.max()) > 255 or int(classes.min()) < 0:
+        raise RuntimeError(f"class codes out of uint8 range for {name}")
+    classes8 = np.ascontiguousarray(classes.astype(np.uint8))
+    classes8.tofile(os.path.join(out_dir, "classes.bin"))
+    activity32.tofile(os.path.join(out_dir, "activity.bin"))
+
     ny, nx = risk32.shape
     meta = {
         "name": name,
@@ -229,6 +267,22 @@ def bake(name: str, max_px: int = 900) -> str:
         "classMix": {str(k): float(v)
                      for k, v in forest.class_mix(classes).items()},
         "seedFlatIndex": seed_flat_index,
+        "areaKm2": float(box.area_km2),
+        "riskPeak": risk_peak,
+        "seedTiesAtMax": ties_at_max,
+        # Published so the browser never hardcodes a constant the model owns.
+        "flammability": {str(int(k)): float(v)
+                         for k, v in forest.FLAMMABILITY.items()},
+        "burnableClasses": [int(c) for c in forest.BURNABLE],
+        "weightDefaults": {"wBase": W_BASE, "wWeather": W_WEATHER,
+                           "wActivity": W_ACTIVITY},
+        "fwiFullScale": float(plan.FWI_FULL_SCALE),
+        "km2PerNode": float(plan.KM2_PER_NODE),
+        # plan_region's own budget clamps -- NOT auto_budget's (3, 40) defaults.
+        "budgetLo": int(inspect.signature(plan.plan_region)
+                        .parameters["budget_lo"].default),
+        "budgetHi": int(inspect.signature(plan.plan_region)
+                        .parameters["budget_hi"].default),
         "generated": dt.datetime.now(dt.timezone.utc).isoformat(),
         "sourceNotes": source_notes(name, int(nx), int(ny), firms_pad_deg),
     }
@@ -259,6 +313,28 @@ def refresh_notes(name: str) -> str:
     return path
 
 
+def write_manifest() -> str:
+    """List the regions that actually have baked data on disk.
+
+    The web app must degrade honestly on an unbaked region -- say so in the
+    picker rather than fetching a 404 and showing an error. Scanning the
+    directory rather than restating a list means the manifest cannot claim a
+    region that was never baked.
+    """
+    baked = sorted(
+        name for name in os.listdir(OUT_ROOT)
+        if os.path.isfile(os.path.join(OUT_ROOT, name, "meta.json"))
+    )
+    path = os.path.join(OUT_ROOT, "manifest.json")
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump({
+            "baked": baked,
+            "generated": dt.datetime.now(dt.timezone.utc).isoformat(),
+        }, fh, indent=1)
+    print(f"manifest: {len(baked)} baked region(s) -> {baked}")
+    return path
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--region", default="los-padres", choices=sorted(REGIONS))
@@ -274,6 +350,7 @@ def main(argv=None) -> int:
             refresh_notes(name)
         else:
             bake(name, max_px=a.max_px)
+    write_manifest()
     return 0
 
 
