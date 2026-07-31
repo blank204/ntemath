@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { useModelStore, spacingFor } from '../state/useModelStore'
+import { useModelStore } from '../state/useModelStore'
 import { PALETTE } from '../theme/palette'
 import type { RegionMeta } from '../lib/loadRegion'
 import { strideKm } from '../lib/pipeline'
@@ -170,13 +170,9 @@ export function RunPanel() {
         Detection radius: {params.detectKm.toFixed(1)} km
         <input
           type="range" min={0.5} max={5} step={0.1} value={params.detectKm}
-          onChange={(e) => {
-            const v = Number(e.target.value)
-            const s = spacingFor(v)
-            setParam('detectKm', v)
-            setParam('rMinKm', s.rMinKm)
-            setParam('rMaxKm', s.rMaxKm)
-          }}
+          // Spacing is no longer a separate parameter: the pipeline derives it
+          // from detectKm through budget.ts, the way plan_region does.
+          onChange={(e) => setParam('detectKm', Number(e.target.value))}
           style={control}
         />
       </label>

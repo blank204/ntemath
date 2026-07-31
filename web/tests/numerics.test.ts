@@ -131,8 +131,8 @@ describe('seenDemand hit-list ordering', () => {
   it('produces non-ascending raw hit lists on the real region, so the sort in cover.ts is not dead code', async () => {
     const region = await loadRegion('los-padres', realFetch())
     const r = runPlacement(region, {
-      seed: 7, detectKm: 2.0, rMinKm: 1.1, rMaxKm: 2.6,
-      target: 0.95, demandStride: 4, maxNodes: null,
+      seed: 7, detectKm: 2.0, target: 0.95, demandStride: 4,
+      budgetMode: 'saturation', fixedNodes: 100, spacingOverride: null,
       ...DEFAULT_WEIGHTS,
     })
     // r.risk is the field the run was actually placed on — the region carries

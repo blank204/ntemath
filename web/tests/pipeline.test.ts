@@ -3,9 +3,10 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { createHash } from 'node:crypto'
-import { runPlacement } from '../src/lib/pipeline'
+import { runPlacement, type PlaceParams } from '../src/lib/pipeline'
 import { loadRegion, type RegionData, type RegionMeta } from '../src/lib/loadRegion'
 import { burnableMaskOf, DEFAULT_WEIGHTS } from '../src/lib/risk'
+import { autoBudget } from '../src/lib/budget'
 import { DEFAULT_PARAMS } from '../src/state/useModelStore'
 
 // Hand-transcribed from `python -m tools.bake.verify_parity`. NOT generated
@@ -62,9 +63,11 @@ function synthetic(nx = 40, ny = 30): RegionData {
   }
 }
 
-const params = {
-  seed: 7, detectKm: 2, rMinKm: 1.1, rMaxKm: 2.6,
-  target: 0.95, demandStride: 2, maxNodes: null,
+const params: PlaceParams = {
+  seed: 7, detectKm: 2, target: 0.95, demandStride: 2,
+  // Saturation derives rMinKm 1.1 / rMaxKm 2.6 from detectKm 2, which is what
+  // this file used to state by hand.
+  budgetMode: 'saturation', fixedNodes: 100, spacingOverride: null,
   ...DEFAULT_WEIGHTS,
 }
 
@@ -99,9 +102,31 @@ describe('runPlacement', () => {
     expect(r.reductionPct).toBeCloseTo(expected, 9)
   })
 
-  it('honours maxNodes', () => {
-    const r = runPlacement(synthetic(), { ...params, maxNodes: 10 })
+  it('honours a fixed node budget', () => {
+    // The spacing override keeps the candidate pool identical to the
+    // saturation run, so this isolates the node cap from the budgeted
+    // respacing that 'fixed' would otherwise also apply.
+    const r = runPlacement(synthetic(), {
+      ...params, budgetMode: 'fixed', fixedNodes: 10,
+      spacingOverride: { rMinKm: 1.1, rMaxKm: 2.6 },
+    })
     expect(r.nodeCount).toBeLessThanOrEqual(10)
+    expect(r.budget.maxNodes).toBe(10)
+    // A budgeted run stops at the cap, not at the coverage target.
+    expect(r.budget.greedyTarget).toBe(1.01)
+  })
+
+  it('respaces the candidate pool when a budget binds', () => {
+    // plan_region sizes the pool from the budget, not the detection radius:
+    // 10 nodes over this region implies a far coarser spread than 1.1 km, so
+    // the pool must shrink. A pipeline that ignored budget.rMinKm would place
+    // the saturation pool and only then truncate.
+    const open = runPlacement(synthetic(), params)
+    const capped = runPlacement(synthetic(), {
+      ...params, budgetMode: 'fixed', fixedNodes: 10,
+    })
+    expect(capped.candidateCount).toBeLessThan(open.candidateCount)
+    expect(capped.budget.rMinKm).toBeGreaterThan(1.1)
   })
 
   it('throws a clear error instead of returning an empty network when the mask allows nothing', () => {
@@ -158,11 +183,13 @@ describe('runPlacement on the real los-padres region', () => {
     const r = runPlacement(region, {
       seed: 7,
       detectKm: 2.0,
-      rMinKm: 2.0 * 0.55,
-      rMaxKm: 2.0 * 1.30,
       target: 0.95,
       demandStride: 4,
-      maxNodes: null,
+      // Saturation, so budget.ts derives rMinKm 1.1 / rMaxKm 2.6 — the same
+      // pair verify_parity.py passes to place.variable_poisson_disk.
+      budgetMode: 'saturation',
+      fixedNodes: 100,
+      spacingOverride: null,
       ...DEFAULT_WEIGHTS,
     })
 
@@ -188,11 +215,11 @@ describe('runPlacement on the real los-padres region', () => {
     const r = runPlacement(region, {
       seed: 7,
       detectKm: 0.6,
-      rMinKm: 0.6 * 0.55,
-      rMaxKm: 0.6 * 1.30,
       target: 0.95,
       demandStride: 4,
-      maxNodes: null,
+      budgetMode: 'saturation',
+      fixedNodes: 100,
+      spacingOverride: null,
       ...DEFAULT_WEIGHTS,
     })
 
@@ -263,5 +290,40 @@ describe('live weights', () => {
     const r = runPlacement(lying, DEFAULT_PARAMS)
     expect(r.seedFlatIndex).toBe(539100)
     expect(r.seedTiesAtMax).toBe(1)
+  }, 120000)
+})
+
+describe('budget modes on the real region', () => {
+  it('measures the burnable area and mean risk plan_region feeds to auto_budget', () => {
+    // budget.test.ts pins autoBudget against these two numbers as literals;
+    // this is the other half of that claim — that the pipeline actually
+    // derives them from the committed rasters. burn_km2 is plan.py:253's
+    // `burn.mean() * box.area_km2`; a burnKm2 taken over the whole grid, or a
+    // mean risk taken off the mask, both move the budget.
+    const r = runPlacement(losPadres(), DEFAULT_PARAMS)
+    expect(r.burnKm2).toBeCloseTo(5073.900713469231, 6)
+
+    // NOT exact, and the gap is understood: `risk[burn].mean()` on a float32
+    // array accumulates in float32 and returns float32 (0.5062295198440552 is
+    // a widened float32), while meanOverMask sums in float64. The difference
+    // is ~1.1e-8, so 6 decimals is the honest bar — the same one
+    // risk.test.ts holds this quantity to.
+    expect(r.meanRiskBurnable).toBeCloseTo(0.5062295198440552, 6)
+
+    // What actually matters is that the gap cannot move the budget. Both
+    // means land 0.35 of a node away from the nearest rounding boundary, so
+    // the node count is the same integer either way. This assertion is the
+    // one to keep if the tolerance above ever has to move.
+    expect(autoBudget(r.burnKm2, r.meanRiskBurnable, 140, 6, 40))
+      .toBe(autoBudget(5073.900713469231, 0.5062295198440552, 140, 6, 40))
+  }, 120000)
+
+  it('auto mode places the 18 nodes the library would, and says so', () => {
+    const r = runPlacement(losPadres(), { ...DEFAULT_PARAMS, budgetMode: 'auto' })
+    expect(r.budget.maxNodes).toBe(18)
+    expect(r.nodeCount).toBeLessThanOrEqual(18)
+    // The cap binds, not the coverage target: 18 nodes cannot reach 95%.
+    expect(r.coveredFraction).toBeLessThan(0.95)
+    expect(r.budget.greedyTarget).toBe(1.01)
   }, 120000)
 })

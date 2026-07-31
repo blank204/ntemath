@@ -20,27 +20,22 @@ interface ModelState {
 }
 
 /**
- * UI defaults. rMinKm/rMaxKm reproduce plan.py:207-208's saturation-regime
- * derivation verbatim (detectKm * 0.55 and detectKm * 1.30). maxNodes is
- * null, i.e. saturation: node count is whatever the coverage target requires.
+ * UI defaults. Saturation is the default budget mode: node count is whatever
+ * the coverage target requires, and spacing is derived from detectKm by
+ * budget.ts (detectKm * 0.55 and detectKm * 1.30), never restated here.
  *
  * The drive weights are spread from risk.ts's DEFAULT_WEIGHTS, which carries
- * plan.risk_field's own literal parameter defaults — never restated here.
+ * plan.risk_field's own literal parameter defaults — also never restated here.
  */
 export const DEFAULT_PARAMS: PlaceParams = {
   seed: 7,
   detectKm: 2.0,
-  rMinKm: 1.1,        // detectKm * 0.55, per plan_region's saturation regime
-  rMaxKm: 2.6,        // detectKm * 1.30, same source
   target: 0.95,
   demandStride: 4,
-  maxNodes: null,
+  budgetMode: 'saturation',
+  fixedNodes: 100,
+  spacingOverride: null,
   ...DEFAULT_WEIGHTS,
-}
-
-/** Keep spacing tied to the detection radius exactly as plan_region does. */
-export function spacingFor(detectKm: number): { rMinKm: number; rMaxKm: number } {
-  return { rMinKm: detectKm * 0.55, rMaxKm: detectKm * 1.3 }
 }
 
 export const useModelStore = create<ModelState>((set) => ({

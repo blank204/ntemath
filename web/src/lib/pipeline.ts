@@ -5,15 +5,24 @@ import { variablePoissonDisk } from './poisson'
 import { demandPoints, greedyMinimise } from './cover'
 import { recombineRisk, flammabilityLut, meanOverMask } from './risk'
 import { resolveSeedIndex } from './seed'
+import { resolveBudget } from './budget'
+import type { BudgetMode, BudgetPlan } from './budget'
 
 export interface PlaceParams {
   seed: number
   detectKm: number
-  rMinKm: number
-  rMaxKm: number
   target: number
   demandStride: number
-  maxNodes: number | null
+  /**
+   * Which rule decides how many nodes may be placed. Spacing follows from it,
+   * exactly as in `plan_region`: there is no independent rMinKm/rMaxKm input,
+   * because in the Python those are derived unless the caller overrides both.
+   */
+  budgetMode: BudgetMode
+  /** Only read when `budgetMode` is `'fixed'`. */
+  fixedNodes: number
+  /** The manual escape hatch, mirroring plan_region's r_min_km/r_max_km args. */
+  spacingOverride: { rMinKm: number; rMaxKm: number } | null
   /**
    * The three drive weights `plan.risk_field` takes, all independent inputs.
    * The model boundary carries what the model takes; a two-slider UI that
@@ -43,6 +52,10 @@ export interface PlaceResult {
   seedTiesAtMax: number
   /** `risk[burnable].mean()`, the quantity plan_region feeds to auto_budget. */
   meanRiskBurnable: number
+  /** The node cap, greedy target and spacing this run actually used. */
+  budget: BudgetPlan
+  /** Burnable area in km2 — `burn.mean() * box.area_km2`, as plan_region has it. */
+  burnKm2: number
 }
 
 /**
@@ -61,9 +74,9 @@ export function strideKm(meta: RegionMeta, demandStride: number): number {
  * The whole siting pipeline, exactly as plan.plan_region sequences it:
  * blue-noise candidates, then greedy set cover to the coverage target.
  *
- * Budget is saturation by default (maxNodes = null) — node count is whatever
- * reaching `target` requires. The Python's budget="auto" path clamps to 40
- * nodes, which cannot reach the target on a real region and is not used here.
+ * Budget is saturation by default — node count is whatever reaching `target`
+ * requires. `'auto'` and `'fixed'` reproduce plan_region's budgeted regimes,
+ * including its unreachable coverage target; see budget.ts.
  */
 export function runPlacement(region: RegionData, p: PlaceParams): PlaceResult {
   const { widthKm, heightKm, name } = region.meta
@@ -91,9 +104,32 @@ export function runPlacement(region: RegionData, p: PlaceParams): PlaceResult {
     )
   }
 
+  // The budget depends on mean risk over burnable ground, which depends on the
+  // weights — so it is resolved from THIS run's field, not from the bake.
+  const meanRiskBurnable = meanOverMask(risk, region.mask)
+  let burnable = 0
+  for (let i = 0; i < region.mask.data.length; i++) {
+    if (region.mask.data[i] > 0.5) burnable++
+  }
+  // plan.py:253 — `burn_km2 = float(burn.mean()) * box.area_km2`.
+  const burnKm2 = (burnable / region.mask.data.length) * region.meta.areaKm2
+
+  const budget = resolveBudget({
+    mode: p.budgetMode,
+    fixedNodes: p.fixedNodes,
+    detectKm: p.detectKm,
+    target: p.target,
+    burnKm2,
+    meanRiskBurnable,
+    km2PerNode: region.meta.km2PerNode,
+    budgetLo: region.meta.budgetLo,
+    budgetHi: region.meta.budgetHi,
+    override: p.spacingOverride,
+  })
+
   const candidates = variablePoissonDisk(
     new RefRNG(p.seed), risk, widthKm, heightKm,
-    p.rMinKm, p.rMaxKm, region.mask, 24, 200_000, seed.index,
+    budget.rMinKm, budget.rMaxKm, region.mask, 24, 200_000, seed.index,
   )
 
   if (candidates.length === 0) {
@@ -109,7 +145,8 @@ export function runPlacement(region: RegionData, p: PlaceParams): PlaceResult {
   )
 
   const cov = greedyMinimise(
-    candidates, demand.xy, demand.w, p.detectKm, p.target, p.maxNodes,
+    candidates, demand.xy, demand.w, p.detectKm,
+    budget.greedyTarget, budget.maxNodes,
   )
 
   const nodes = new Float64Array(cov.chosen.length * 2)
@@ -135,6 +172,8 @@ export function runPlacement(region: RegionData, p: PlaceParams): PlaceResult {
     risk,
     seedFlatIndex: seed.index,
     seedTiesAtMax: seed.tiesAtMax,
-    meanRiskBurnable: meanOverMask(risk, region.mask),
+    meanRiskBurnable,
+    budget,
+    burnKm2,
   }
 }

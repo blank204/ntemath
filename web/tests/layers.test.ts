@@ -106,8 +106,8 @@ describe('nodesLayer coordinate conversion', () => {
   it('places every real Los Padres node inside the region bbox', async () => {
     const region = await loadRegion('los-padres', realFetch())
     const r = runPlacement(region, {
-      seed: 7, detectKm: 2.0, rMinKm: 2.0 * 0.55, rMaxKm: 2.0 * 1.3,
-      target: 0.95, demandStride: 4, maxNodes: null,
+      seed: 7, detectKm: 2.0, target: 0.95, demandStride: 4,
+      budgetMode: 'saturation', fixedNodes: 100, spacingOverride: null,
       ...DEFAULT_WEIGHTS,
     })
     expect(r.nodeCount).toBe(572)
