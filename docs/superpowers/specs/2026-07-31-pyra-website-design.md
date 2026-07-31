@@ -238,6 +238,24 @@ Flammability **multiplies**; the drive terms **add**. The site should explain wh
 
 These appear in the build-status strip as declared roadmap items. Nothing on the site may claim the model weighs elevation or camper traffic until it does.
 
+### The two models do not span the same geography — design constraint
+
+Established 2026-07-31 by reading `realdata.py` and `catalog.py`.
+
+| System | Coverage | Why |
+|---|---|---|
+| **Siting** (`nodenet`) | **Global** — any lon/lat box on Earth | WorldCover, FIRMS and Open-Meteo are all worldwide and keyless |
+| **Fire spread** (M1–M7) | **California only** | Built on CAL FIRE FRAP perimeters and LANDFIRE rasters, hardcoded to EPSG:32611 (UTM 11N), with `fbfm40_to_fuel` mapping LANDFIRE fuel codes. LANDFIRE is CONUS |
+
+This constrains the benchmark, because detection time requires simulating a fire until a node sees it.
+
+**How the site handles it:**
+- **Detection-time benchmarking runs on Los Padres only**, using the team's validated fire model where it is actually valid — and says so on screen.
+- **Placement results remain global.** Coverage, node count and the set-cover reduction are computed from the siting model alone and are valid for every region.
+- The site must **never imply the fire simulation is validated worldwide.** It is validated against two real California fires (SILVERADO 2020, LAKE 2024). That is a strong, specific, defensible claim; stretching it is the kind of overreach that collapses under Q&A.
+
+Extending fire simulation to the other seven regions would mean writing a `Domain` adapter that builds fuel and terrain from WorldCover instead of LANDFIRE — a genuine piece of work, not a configuration change. Out of scope; recorded so it is a decision rather than an oversight.
+
 ### The fire model — upgraded claim
 The earlier draft called this "a simplified CA, must be labelled as such." That undersold it. It is calibrated, convergence-tested, and validated against two real fires. The site may say so, provided it also carries the limitations the authors themselves documented: simulated aspect ratio ~1.0 against 2.79 observed; ~19% `g_geom` head-ROS drift across 8× spacing; no suppression, spotting or diurnal cycle. Reporting those *strengthens* the claim — they are the marks of a model whose authors measured it rather than sold it.
 
