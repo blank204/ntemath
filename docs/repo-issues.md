@@ -64,6 +64,38 @@ Node count scales as 1/r², so halving this quadruples the hardware and the glob
 
 **Suggested fix:** source it, or measure it, or present it explicitly as a design assumption with a sensitivity range. This is the number a technical judge is most likely to push on.
 
+### 1.5 `plan_region` exports every node half a box off — [measured]
+**Where:** `plan.py:285-286`
+
+```python
+lon, lat = frame.to_lonlat(nodes_km[:, 0], nodes_km[:, 1]) if cov.n else ([], [])
+clon, clat = frame.to_lonlat(cand_km[:, 0], cand_km[:, 1]) if len(cand_km) else ([], [])
+```
+
+The two frames do not agree. `place.variable_poisson_disk` returns kilometres measured from the box's **south-west corner** — its own docstring says "row 0 at the south edge", and it generates points into `[0, width_km) x [0, height_km)`. `LocalFrame` is **centre-origin**: `to_lonlat(x, y)` is `x / kx + lon0`, where `lon0, lat0 = box.centre`. So `to_lonlat(0, 0)` returns the box *centre*, not the south-west corner.
+
+Feeding corner-origin kilometres straight into a centre-origin frame therefore translates the whole network by exactly half the box, north-east.
+
+Measured on Los Padres (`BBox(-120.3, 34.4, -119.4, 35.0)`, extent 82.369 x 66.792 km):
+
+- a node sited at `(0, 0)` km — the south-west corner — is exported at `(-119.85, 34.7)`, which is the box centre;
+- every exported node lands **41.18 km east and 33.40 km north** of where it was sited — exactly `width_km / 2` and `height_km / 2`.
+
+This affects `nodes_lonlat` **and** `candidates_lonlat`, so every GeoJSON, every map and every coordinate the project has published from `plan_region` has the network in the wrong place. Nothing downstream can detect it: the shape of the network is unchanged, only its position, and the offset is large enough that nodes land outside the region they were planned for.
+
+The coverage/reduction statistics are **not** affected — `greedy_minimise` and `coverage_of` both work in the corner-origin km space, before this conversion — so the headline numbers survive. Only the geography is wrong.
+
+`web/src/map/layers.ts:66-67` is the only correct conversion in the repo: it subtracts `widthKm / 2` and `heightKm / 2` before calling `toLonLat`, and 0/572 Los Padres nodes fall outside the box as a result (449/572 fall outside if the correction is removed).
+
+**Suggested fix (not applied — the website work does not modify repo-root Python):** subtract half the extent before converting, i.e.
+
+```python
+w_km, h_km = frame.extent_km
+lon, lat = frame.to_lonlat(nodes_km[:, 0] - w_km / 2, nodes_km[:, 1] - h_km / 2)
+```
+
+or give `LocalFrame` an explicit corner-origin helper so the two conventions cannot be mixed up again by the next caller.
+
 ---
 
 ## 2. Correctness and honesty

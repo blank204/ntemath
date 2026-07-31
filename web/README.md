@@ -1,32 +1,90 @@
-# React + TypeScript + Vite
+# Pyra — web
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+The browser side of Pyra: an interactive map that runs the wildfire-sensor
+siting model **in the browser**, on real baked data, and reproduces the Python
+reference (`place.py`) bit for bit.
 
-Currently, two official plugins are available:
+Pick a region, set a detection radius and a coverage target, hit **Run
+placement**. A Web Worker generates a variable-radius blue-noise candidate
+pool, then prunes it with a lazy-greedy (CELF) set cover until the coverage
+target is met. On the committed Los Padres data at the shipped defaults that
+is **927 candidates → 572 nodes at 95.0 % risk-weighted coverage** — the same
+numbers `place.py` produces from the same rasters and the same reference RNG.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Running it
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev            # http://localhost:5173
+npm run build          # tsc -b && vite build
+npm run test           # vitest run
+npm run lint           # oxlint
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+The satellite basemap needs a MapTiler key. Put it in `web/.env.local`
+(gitignored, never committed):
+
+```
+VITE_MAPTILER_KEY=your-key-here
+```
+
+Without a key the app still runs — the map falls back to a flat canvas-colour
+background and every model number is unchanged.
+
+## Re-baking region data
+
+`public/data/<region>/` holds three files per region: `risk.bin` (float32,
+row-major, **row 0 at the south edge**), `mask.bin` (uint8 burnable mask) and
+`meta.json` (geometry, provenance, and the resolved placement seed index).
+They are produced from the repo-root Python model:
+
+```bash
+cd ..                                                   # repo root
+python -m tools.bake.bake_region --region los-padres    # full re-bake
+python -m tools.bake.bake_region --all
+python -m tools.bake.bake_region --region los-padres --notes-only
+```
+
+A full re-bake refetches ESA WorldCover, NASA FIRMS and Open-Meteo, and
+because the risk field is renormalised to its own peak it rewrites **every
+pixel** — so it invalidates the parity figures pinned in the test suite. Use
+`--notes-only` when you only need to correct provenance text.
+
+Golden fixtures for the TypeScript/Python parity tests come from a separate
+generator:
+
+```bash
+python -m tools.bake.export_fixtures     # writes web/tests/fixtures/*.json
+```
+
+## Where things live
+
+| Path | What it is |
+| --- | --- |
+| `src/lib/` | The model port: RNG, pairwise summation, projection, field sampling, Poisson-disk, spatial index, set cover, pipeline |
+| `src/map/` | The single MapLibre instance and the deck.gl layers |
+| `src/ui/` | The run panel, readouts and provenance disclosure |
+| `src/theme/palette.ts` | The only source of colour. Never hardcode a hex |
+| `src/workers/` | Off-thread placement runner |
+| `tests/` | Vitest suite, including `tests/fixtures/*.json` golden data from Python |
+| `public/data/` | Baked region rasters and metadata |
+
+## Tests
+
+`npm run test` runs everything. The load-bearing ones:
+
+- `tests/pipeline.test.ts` — end-to-end parity against `place.py` on the real
+  committed Los Padres rasters, at the default detection radius and at a
+  non-default one.
+- `tests/poisson.test.ts`, `tests/cover.test.ts` — golden fixtures generated
+  by `tools/bake/export_fixtures.py`, asserted exactly.
+- `tests/layers.test.ts` — the raster vertical flip and the SW-corner to
+  box-centre coordinate conversion, the last hop before anything is drawn.
+- `tests/sum.test.ts`, `tests/refrng.test.ts`, `tests/frame.test.ts` — the
+  numeric primitives the parity rests on.
+
+## Colour rule
+
+Green and black are surfaces. Saturated orange is reserved for fire, heat and
+alert states. Nodes and Pyra data series are mesh teal; comparison baselines
+are grey. Import from `src/theme/palette.ts`.
