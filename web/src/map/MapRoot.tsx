@@ -107,6 +107,20 @@ export function MapRoot() {
     return () => { cancelled = true }
   }, [regionName, setRegion, setError])
 
+  // Once a run returns, the backdrop becomes the field that run was actually
+  // placed on — not the default-weight field drawn at load. Without this the
+  // weight sliders would move the network while the raster underneath it
+  // silently kept showing the defaults.
+  useEffect(() => {
+    if (!region || !result) return
+    let cancelled = false
+    createImageBitmap(riskToImage(result.risk, region.mask)).then((bmp) => {
+      if (cancelled) bmp.close()
+      else setImage(bmp)
+    })
+    return () => { cancelled = true }
+  }, [region, result])
+
   useEffect(() => {
     if (!overlayRef.current) return
     if (!region) {

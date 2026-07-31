@@ -99,7 +99,7 @@ export function RunPanel() {
   const runIdRef = useRef(0)
   const {
     regionName, region, params, result, running, error,
-    setRegionName, setParam, setRunning, setResult, setError,
+    setRegionName, setParam, setRunning, setResult, setBenchmark, setError,
   } = useModelStore()
 
   useEffect(() => () => { workerRef.current?.terminate() }, [])
@@ -118,8 +118,10 @@ export function RunPanel() {
     workerRef.current = w
     w.onmessage = (e: MessageEvent<DoneMessage | ErrorMessage>) => {
       if (e.data.runId !== runIdRef.current) return // stale response, ignore
-      if (e.data.type === 'done') setResult(e.data.result)
-      else setError(e.data.message)
+      if (e.data.type === 'done') {
+        setResult(e.data.result)
+        setBenchmark(e.data.benchmark)
+      } else setError(e.data.message)
       setRunning(false)
       w.terminate()
       if (workerRef.current === w) workerRef.current = null

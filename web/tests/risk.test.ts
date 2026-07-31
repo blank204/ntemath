@@ -96,6 +96,40 @@ describe('recombineRisk on the real region', () => {
     expect(out.peak).toBe(meta.riskPeak)
   })
 
+  it('survives a derived w_base, so the anchor is not the reason for three weights', () => {
+    // `1 - 0.45 - 0.35` is 0.20000000000000007, not the float64 literal 0.2
+    // that plan.risk_field defaults to and that risk.bin was baked with. The
+    // comment on recombineRisk used to claim that deriving w_base this way is
+    // "exactly what breaks bit-for-bit reproduction". Measured here: it does
+    // not. Zero of 540,000 pixels move. The /peak normalisation divides the
+    // near-uniform perturbation of `s` back out, and float32 narrowing absorbs
+    // what is left.
+    //
+    // The three independent weights are still right, on the honest reason:
+    // plan.risk_field's signature takes three, and nothing in the model
+    // requires them to sum to 1. Forcing that constraint at the model boundary
+    // would misreport what the Python does. The sum-to-1 rule is a slider
+    // convention and lives in the store.
+    //
+    // Keep this test. If a future change makes the derivation start costing
+    // pixels, that is worth knowing immediately.
+    const rb = bytes('risk.bin')
+    const baked = new Float32Array(rb.buffer, rb.byteOffset, rb.byteLength / 4)
+    const derivedBase = 1 - meta.weightDefaults.wWeather - meta.weightDefaults.wActivity
+    expect(derivedBase).not.toBe(meta.weightDefaults.wBase)
+
+    const out = recombineRisk(inputs(), {
+      wWeather: meta.weightDefaults.wWeather,
+      wActivity: meta.weightDefaults.wActivity,
+      wBase: derivedBase,
+    })
+    let diffs = 0
+    for (let i = 0; i < baked.length; i++) {
+      if (out.risk.data[i] !== baked[i]) diffs++
+    }
+    expect(diffs).toBe(0)
+  })
+
   it('changes the field when the weights change', () => {
     const a = recombineRisk(inputs(), { wWeather: 0.45, wActivity: 0.35, wBase: 0.20 })
     const b = recombineRisk(inputs(), { wWeather: 0.45, wActivity: 0, wBase: 0.20 })

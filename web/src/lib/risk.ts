@@ -6,12 +6,18 @@ import type { ClassField, Field } from './types'
  * (`w_weather=0.45, w_activity=0.35, w_base=0.20`) — nothing here requires
  * them to sum to 1. They happen to in the shipped defaults because that is
  * how the model's author chose the three literals, not because the model
- * enforces it. A UI that wants two sliders whose pair sums to at most 1 can
- * compute `wBase` as the remainder and pass it in; that derivation is a
- * presentation choice and does not belong in this function, because deriving
- * it here is exactly what breaks bit-for-bit reproduction of `risk.bin` (a
- * derived `1 - 0.45 - 0.35` is not the float64 bit pattern of the literal
- * `0.20` `plan.risk_field` actually defaults to).
+ * enforces it. Forcing a sum-to-1 constraint here would misreport what the
+ * Python does; a UI that wants two sliders whose pair sums to at most 1 can
+ * compute `wBase` as the remainder and pass it in, and the store does exactly
+ * that (`useModelStore.clampWeights`).
+ *
+ * An earlier version of this comment claimed the derivation would break
+ * bit-for-bit reproduction of `risk.bin`, because `1 - 0.45 - 0.35` is
+ * 0.20000000000000007 rather than the literal 0.2. That was measured and is
+ * false: zero of 540,000 pixels move, because the `/peak` normalisation
+ * divides the near-uniform perturbation back out. See the test
+ * "survives a derived w_base" in web/tests/risk.test.ts. The three-weight
+ * signature is right for the first reason, not the second.
  */
 export interface Weights {
   wWeather: number
