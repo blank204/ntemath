@@ -96,8 +96,6 @@ lon, lat = frame.to_lonlat(nodes_km[:, 0] - w_km / 2, nodes_km[:, 1] - h_km / 2)
 
 or give `LocalFrame` an explicit corner-origin helper so the two conventions cannot be mixed up again by the next caller.
 
----
-
 ### 1.6 `mesh.build_mesh`'s `clip_guard` false-positives on large domains — [measured]
 **Where:** `mesh.py`, the `clip_guard` check inside `build_mesh`
 
