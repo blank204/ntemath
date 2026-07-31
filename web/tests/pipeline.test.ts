@@ -2,8 +2,22 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { createHash } from 'node:crypto'
 import { runPlacement } from '../src/lib/pipeline'
 import { loadRegion, type RegionData } from '../src/lib/loadRegion'
+
+// Hand-transcribed from `python -m tools.bake.verify_parity`. NOT generated
+// into this file: this test is worth having only because a Python run and a
+// TypeScript run, written independently, arrive at the same numbers. If it
+// fails, find the divergence — never re-baseline it from the TS output.
+const PARITY = {
+  demandCount: 31045,
+  candidateCount: 927,
+  nodeCount: 572,
+  coveredFraction: 0.9501274126362225,
+  areaFraction: 0.948204219681108,
+  chosenSha256: '6e607409dd821efaa1580c31856e23d814c4b53a9bbe88126ee3ccce6fdece3b',
+}
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -132,7 +146,7 @@ describe('runPlacement on the real los-padres region', () => {
     return loadRegion('los-padres', realFetch)
   }
 
-  it('places hundreds of nodes and reaches 0.95 coverage', async () => {
+  it('reproduces the Python reference run on the committed rasters', async () => {
     const region = await loadReal()
 
     const r = runPlacement(region, {
@@ -145,16 +159,12 @@ describe('runPlacement on the real los-padres region', () => {
       maxNodes: null,
     })
 
-    // Exact parity reference, established against a matched Python run that
-    // called place.variable_poisson_disk / greedy_minimise directly with
-    // RefRNG(7) and these same parameters on the committed los-padres
-    // rasters: 927 candidates -> 572 nodes, chosen sequence and coverage
-    // bit-identical to 15 digits. Assert exactly (toBe, not a tolerance) so
-    // a parity regression fails loudly instead of slipping past a loose
-    // bound the way the earlier (wrong) 928/561 reference did.
-    expect(r.candidateCount).toBe(927)
-    expect(r.nodeCount).toBe(572)
-    expect(r.coveredFraction).toBe(0.950127412638781)
+    expect(r.candidateCount).toBe(PARITY.candidateCount)
+    expect(r.nodeCount).toBe(PARITY.nodeCount)
+    expect(r.coveredFraction).toBe(PARITY.coveredFraction)
+    expect(r.areaFraction).toBe(PARITY.areaFraction)
+    expect(createHash('sha256').update(r.chosen.join(',')).digest('hex'))
+      .toBe(PARITY.chosenSha256)
   }, 60000)
 
   it('reproduces the Python at a NON-default detection radius (0.6 km)', async () => {
@@ -180,7 +190,7 @@ describe('runPlacement on the real los-padres region', () => {
 
     expect(r.candidateCount).toBe(10322)
     expect(r.nodeCount).toBe(5514)
-    expect(r.coveredFraction).toBe(0.950038065914111)
+    expect(r.coveredFraction).toBe(0.9500380659125003)
     expect(r.areaFraction).toBe(0.9447898212272507)
   }, 300000)
 })
