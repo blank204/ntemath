@@ -52,4 +52,21 @@ describe('pairwiseSum', () => {
     }
     expect(pairwiseSum(a)).toBe(826.8900000000001)
   })
+
+  it('matches numpy exactly at n=130, where the 8-alignment guard first bites', () => {
+    // numpy 2.4.4 reference: 839.8000000000001.
+    //
+    // This is the smallest n at which dropping `half -= half % 8` from the
+    // recursive split diverges from numpy: at n=129 both the aligned split
+    // (64/65 -> 64/65 after alignment) and the unaligned one agree, and n=130
+    // is the first size where the unaligned halves (65/65) put the base-case
+    // unrolled loop out of phase. Verified against live numpy for n=129..139:
+    // the aligned split matches at every size, the unaligned one first fails
+    // here.
+    const a = new Float64Array(130)
+    for (let i = 0; i < 130; i++) {
+      a[i] = i * 0.1 + 0.01
+    }
+    expect(pairwiseSum(a)).toBe(839.8000000000001)
+  })
 })

@@ -1,4 +1,4 @@
-import type { RegionData } from './loadRegion'
+import type { RegionData, RegionMeta } from './loadRegion'
 import { RefRNG } from './refrng'
 import { variablePoissonDisk } from './poisson'
 import { demandPoints, greedyMinimise } from './cover'
@@ -23,6 +23,18 @@ export interface PlaceResult {
   nodeCount: number
   /** Hardware saved by the greedy minimisation stage, as a percentage. */
   reductionPct: number
+}
+
+/**
+ * The resolution at which coverage is scored, in km.
+ *
+ * Mirrors plan.py:274 (`stride_km = demand_stride * w_km / risk.shape[1]`).
+ * cover.ts's demandPoints and place.py:303 both say the stride must be
+ * reported wherever a coverage number is shown — coverage at a 0.37 km stride
+ * and coverage at a 4 km stride are not the same claim.
+ */
+export function strideKm(meta: RegionMeta, demandStride: number): number {
+  return (demandStride * meta.widthKm) / Math.max(meta.nx, 1)
 }
 
 /**

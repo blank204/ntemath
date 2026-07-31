@@ -55,6 +55,10 @@ export async function loadRegion(
   const meta = (await (await get(fetchImpl, `${base}/meta.json`)).json()) as RegionMeta
   const expected = meta.nx * meta.ny
 
+  // PRECONDITION: little-endian host. bake_region writes risk.bin as explicit
+  // `<f4`, but Float32Array decodes in the platform's byte order — correct on
+  // every deployable target (x86, ARM, WASM are all LE) and silently wrong on
+  // a big-endian one.
   const riskBuf = await (await get(fetchImpl, `${base}/risk.bin`)).arrayBuffer()
   const risk = new Float32Array(riskBuf)
   if (risk.length !== expected) {

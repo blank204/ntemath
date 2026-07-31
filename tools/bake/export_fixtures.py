@@ -31,7 +31,7 @@ def _repo_geo_and_place():
 # maximizes the per-draw rejection probability at this magnitude and keeps
 # the expected number of draws-to-first-rejection near 2**19 (~524k) instead
 # of the 2**24+ (~16.7M) a naively chosen HIGH near 2**45 would need.
-REJECTION_HIGH = 35184372088833  # 2**45 + 524289, tuned for max threshold/HIGH
+REJECTION_HIGH = 35184372088833  # 2**45 + 1, tuned for max threshold/HIGH
 REJECTION_SEED = 999_999
 REJECTION_RECORD = 8
 REJECTION_SEARCH_BOUND = 5_000_000
@@ -246,14 +246,20 @@ def poisson_fixture() -> None:
             # instead of relying on a second sort implementation to agree
             # with numpy's unstable tie-break.
 
-        # web/src/lib/types.ts stores Field.data as Float32Array. Snap here
-        # so place.py computes on the exact values the TS port will read
-        # back -- otherwise every radius and candidate position drifts by
-        # the float64-vs-float32 rounding gap, and that drift compounds
-        # across the active-list chain as points get placed. Confirmed as
-        # the standing rule for fixtures that feed a Field: the reference
-        # must compute on the exact values the consumer will hold.
-        risk = risk.astype(np.float32).astype(np.float64)
+        # web/src/lib/types.ts stores Field.data as Float32Array, and
+        # risk.bin ships as "<f4", so keep this array float32 -- dtype and
+        # all, not merely float32-*valued*.
+        #
+        # The dtype matters as much as the values. Under NEP 50 (numpy >=
+        # 2.0) a Python float is a weak scalar, so place.py:108's
+        # `r_max_km - (r_max_km - r_min_km) * _sample_field(risk, ...)`
+        # narrows to float32 when `risk` is float32 and stays float64 when it
+        # is not. A float64 array carrying float32 values would therefore
+        # make this fixture pin the *wrong* arithmetic: the reference would
+        # compute radii in double while the browser computes them in single.
+        # web/src/lib/field.ts mirrors the narrowing with Math.fround; this
+        # is the reference that holds it honest.
+        risk = risk.astype(np.float32)
 
         mask = None
         if mask_kind == "exclude_top_bottom_rows":
@@ -301,12 +307,14 @@ def cover_fixture() -> None:
     v = yy / (ny - 1)
     risk = np.clip(0.5 + 0.5 * np.sin(3 * np.pi * u) * np.cos(2 * np.pi * v), 0, 1)
 
-    # web/src/lib/types.ts stores Field.data as Float32Array, so the browser
-    # computes on float32 risk values. Snap here -- same standing rule as
-    # poisson_fixture -- so place.py's candidate placement, demand sampling,
-    # and coverage scoring all run on the exact values the TS port will read
-    # back, instead of drifting from a float64 reference.
-    risk = risk.astype(np.float32).astype(np.float64)
+    # float32 dtype, not just float32 values -- same standing rule as
+    # poisson_fixture, and for the same NEP-50 reason documented there: the
+    # radius closure in place.py narrows to float32 only when `risk` really
+    # is float32, which is what risk.bin ships and what Field.data holds.
+    # (greedy_minimise and coverage_of both do `np.asarray(demand_w, float)`,
+    # so the weight sums stay float64 either way -- the dtype change moves
+    # the radius arithmetic only.)
+    risk = risk.astype(np.float32)
     mask = risk > 0.15
 
     w_km, h_km = 40.0, 30.0

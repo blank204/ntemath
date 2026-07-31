@@ -53,7 +53,14 @@ export class RefRNG {
     return a
   }
 
-  /** Unbiased integer in [0, high) via Lemire's method. */
+  /**
+   * Unbiased integer in [0, high) via Lemire's method.
+   *
+   * PRECONDITION: `high < 2^53`. The return converts a BigInt to a `number`,
+   * so results at or above Number.MAX_SAFE_INTEGER lose exactness where the
+   * Python stays arbitrary-precision. Unreachable through place.py, whose
+   * only call is `rng.integers(len(active))`.
+   */
   integers(high: number): number {
     const h = BigInt(Math.trunc(high))
     if (h <= 0n) throw new Error('high must be positive')

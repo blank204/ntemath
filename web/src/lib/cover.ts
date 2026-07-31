@@ -61,6 +61,60 @@ export function coverageOf(
 }
 
 /**
+ * The demand indices one candidate sees, in the order scipy would return
+ * them: **ascending**.
+ *
+ * `cKDTree.query_ball_point(cand_xy, r=...)`, called with the full candidate
+ * array at once, sorts each hit list ascending by demand index (its
+ * documented multi-point behaviour). pairwiseSum is sensitive to element
+ * order, so GridIndex's set-only guarantee is not enough — its bucket walk
+ * returns hit lists in bucket order, which on the committed Los Padres data
+ * is non-ascending for 923 of 927 candidates. Sorting here is what makes the
+ * gain sums reproduce Python's bit for bit.
+ *
+ * Split out so the ordering guarantee can be asserted on its own — see the
+ * note on CELF_TOLERANCE for why cover.json cannot catch its removal.
+ */
+export function seenDemand(
+  index: GridIndex, x: number, y: number, radiusKm: number,
+): number[] {
+  const s = index.withinRadius(x, y, radiusKm)
+  s.sort((a, b) => a - b)
+  return s
+}
+
+/**
+ * Slack allowed when comparing a refreshed CELF gain against the best stale
+ * bound still on the heap. Mirrors place.py:265's `- 1e-12`.
+ *
+ * KEEP IT, but do not believe it is covered by the fixtures. On any fixture
+ * built from float32 risk weights this branch is mathematically unreachable:
+ * every weight is a float32 in [0, 1], hence an integer multiple of 2^-26, so
+ * every partial sum is too. The smallest non-zero margin
+ * `trueGain - bestStaleGain` can therefore take is 2^-26 ~ 1.49e-8 — four
+ * orders of magnitude above 1e-12 — and float addition over such values is
+ * exact (<= 40 significand bits), so no rounding noise can land inside the
+ * window either. Deleting the tolerance ships green against cover.json with
+ * exactly zero delta, and a risk-plateau fixture would not change that: it
+ * would have the same exactness property. The predicate is tested directly
+ * instead, in tests/numerics.test.ts.
+ */
+export const CELF_TOLERANCE = 1e-12
+
+/**
+ * The CELF refresh predicate: is a candidate's freshly recomputed gain good
+ * enough to accept, given the best *stale* upper bound left on the heap?
+ *
+ * Split out of greedyMinimise so it can be exercised on its own — see
+ * CELF_TOLERANCE for why no fixture can reach the tolerance.
+ */
+export function celfAcceptsRefresh(
+  trueGain: number, bestStaleGain: number,
+): boolean {
+  return trueGain >= bestStaleGain - CELF_TOLERANCE
+}
+
+/**
  * Fewest candidates covering `target` of risk-weighted demand.
  *
  * Lazy greedy (CELF): marginal gain is submodular, so a stored gain is always
@@ -90,17 +144,11 @@ export function greedyMinimise(
   for (let i = 0; i < nd; i++) { dx[i] = demandXY[2 * i]; dy[i] = demandXY[2 * i + 1] }
   const dIndex = new GridIndex(dx, dy, Math.max(radiusKm, 1e-6))
 
-  // scipy's cKDTree.query_ball_point(cand_xy, r=radius_km), called with the
-  // full candidate array at once, returns each hit list sorted ascending by
-  // demand index (its documented "multi-point query" behaviour). pairwiseSum
-  // is sensitive to element order, so GridIndex's set-only guarantee is not
-  // enough here: sort each hit list the same way scipy does, or a gain sum
-  // can differ in the last bit and flip a heap comparison against Python.
+  // Which demand points each candidate can see, in scipy's ascending order —
+  // see seenDemand for why the ordering is load-bearing.
   const sees: number[][] = new Array(nc)
   for (let i = 0; i < nc; i++) {
-    const s = dIndex.withinRadius(candXY[2 * i], candXY[2 * i + 1], radiusKm)
-    s.sort((a, b) => a - b)
-    sees[i] = s
+    sees[i] = seenDemand(dIndex, candXY[2 * i], candXY[2 * i + 1], radiusKm)
   }
 
   const covered = new Uint8Array(nd)
@@ -168,7 +216,10 @@ export function greedyMinimise(
       const [, i, stamp] = e
       const trueGain = gainOf(i)
       if (trueGain <= 0) continue
-      if (stamp === it || heap.length === 0 || trueGain >= -heap[0][0] - 1e-12) {
+      if (
+        stamp === it || heap.length === 0 ||
+        celfAcceptsRefresh(trueGain, -heap[0][0])
+      ) {
         best = [i, trueGain]
         break
       }

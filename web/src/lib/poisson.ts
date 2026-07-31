@@ -44,6 +44,11 @@ export function variablePoissonDisk(
   }
 
   // Clip and de-NaN, as np.clip(np.nan_to_num(risk)) does.
+  // PRECONDITION: no infinities in `risk`. Number.isFinite sends both +/-Inf
+  // to 0, whereas np.nan_to_num maps +Inf to the float max and -Inf to the
+  // float min, so np.clip then yields 1.0 and 0.0 respectively. NaN -> 0
+  // matches. Baked risk fields are finite by construction (risk_field divides
+  // by a finite peak), so this cannot fire on shipped data.
   const r = new Float32Array(risk.data.length)
   for (let i = 0; i < r.length; i++) {
     const v = risk.data[i]

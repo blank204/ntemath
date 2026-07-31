@@ -17,7 +17,7 @@ const ELONGATION_BAR = 2
  * sliver. This — not the whole grid's aspect ratio — is what determines
  * whether a uniform grid covers the region evenly.
  */
-function cellElongation(
+export function cellElongation(
   widthKm: number, heightKm: number, cols: number, rows: number,
 ): number {
   const cellW = widthKm / cols
@@ -39,7 +39,7 @@ function cellElongation(
  *  - a band above the best elongation within which more nodes wins, capped so
  *    that trade can never push a grid past an elongation of 2.
  */
-function gridShape(
+export function gridShape(
   widthKm: number, heightKm: number, n: number,
 ): [cols: number, rows: number] {
   const w = Math.max(widthKm, 1e-9)

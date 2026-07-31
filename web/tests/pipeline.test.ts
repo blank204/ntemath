@@ -102,7 +102,7 @@ describe('runPlacement', () => {
 })
 
 describe('runPlacement on the real los-padres region', () => {
-  it('places hundreds of nodes and reaches 0.95 coverage', async () => {
+  const loadReal = async () => {
     const dataDir = join(__dirname, '..', 'public', 'data', 'los-padres')
     const realMeta = JSON.parse(readFileSync(join(dataDir, 'meta.json'), 'utf-8'))
     const riskBuf = readFileSync(join(dataDir, 'risk.bin'))
@@ -129,7 +129,11 @@ describe('runPlacement on the real los-padres region', () => {
       return { ok: false, status: 404 } as any
     }) as any
 
-    const region = await loadRegion('los-padres', realFetch)
+    return loadRegion('los-padres', realFetch)
+  }
+
+  it('places hundreds of nodes and reaches 0.95 coverage', async () => {
+    const region = await loadReal()
 
     const r = runPlacement(region, {
       seed: 7,
@@ -152,4 +156,31 @@ describe('runPlacement on the real los-padres region', () => {
     expect(r.nodeCount).toBe(572)
     expect(r.coveredFraction).toBe(0.950127412638781)
   }, 60000)
+
+  it('reproduces the Python at a NON-default detection radius (0.6 km)', async () => {
+    // detectKm = 2.0 is the one point on the slider where float64 radius
+    // arithmetic happened to agree with numpy's float32. It does not agree
+    // everywhere: before field.ts mirrored NEP 50's narrowing with
+    // Math.fround, this configuration produced 10262 candidates in the
+    // browser against 10322 in Python — a different network, reachable by
+    // dragging one slider. Reference from a matched Python run
+    // (place.variable_poisson_disk + demand_points + greedy_minimise,
+    // RefRNG(7), float32 risk.bin/mask.bin, stride 4, target 0.95).
+    const region = await loadReal()
+
+    const r = runPlacement(region, {
+      seed: 7,
+      detectKm: 0.6,
+      rMinKm: 0.6 * 0.55,
+      rMaxKm: 0.6 * 1.30,
+      target: 0.95,
+      demandStride: 4,
+      maxNodes: null,
+    })
+
+    expect(r.candidateCount).toBe(10322)
+    expect(r.nodeCount).toBe(5514)
+    expect(r.coveredFraction).toBe(0.950038065914111)
+    expect(r.areaFraction).toBe(0.9447898212272507)
+  }, 300000)
 })
