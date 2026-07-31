@@ -18,31 +18,50 @@ export function uniformGrid(
   if (n <= 0) return new Float64Array(0)
 
   const aspect = widthKm / Math.max(heightKm, 1e-9)
-  const targetAspect = aspect
 
-  // Find the (cols, rows) pair that maximizes cols * rows <= n
-  // while preferring aspect ratios close to the region's aspect.
+  // Find the (cols, rows) pair that avoids degenerate shapes (min(cols,rows) === 1)
+  // while maintaining an aspect ratio close to the region's aspect.
+  // Allow a small bounded shortfall in exchange for better shape quality.
   let bestCols = 1
   let bestRows = 1
-  let bestProduct = 1
-  let bestAspectDiff = Math.abs(1 - targetAspect)
+  let bestAspectDiff = Math.abs(1 - aspect)
+  let bestProduct = 0
 
-  for (let cols = 1; cols <= n; cols++) {
-    const rows = Math.floor(n / cols)
-    if (rows < 1) break
-    const product = cols * rows
-    if (product > n) continue
+  // Search for the best non-degenerate factorization.
+  // Allow a small bounded shortfall (up to 3 nodes or n/20, whichever is smaller).
+  const minShortfall = Math.min(3, Math.max(1, Math.floor(n / 20)))
+  const minProduct = Math.max(1, n - minShortfall)
 
-    const gridAspect = cols / rows
-    const aspectDiff = Math.abs(gridAspect - targetAspect)
-
-    // Prefer larger product; if tied, prefer closer aspect ratio.
-    if (product > bestProduct || (product === bestProduct && aspectDiff < bestAspectDiff)) {
-      bestCols = cols
-      bestRows = rows
-      bestProduct = product
-      bestAspectDiff = aspectDiff
+  for (let product = n; product >= minProduct; product--) {
+    // Find all factorizations of product where both factors >= 2.
+    for (let cols = 2; cols * cols <= product; cols++) {
+      if (product % cols === 0) {
+        const rows = product / cols
+        if (Math.min(cols, rows) >= 2) {
+          // Non-degenerate candidate found.
+          const gridAspect = cols / rows
+          const aspectDiff = Math.abs(gridAspect - aspect)
+          if (aspectDiff < bestAspectDiff || bestProduct === 0) {
+            bestCols = cols
+            bestRows = rows
+            bestProduct = product
+            bestAspectDiff = aspectDiff
+          }
+        }
+      }
     }
+  }
+
+  // Fallback: if no non-degenerate solution exists (e.g., n < 4),
+  // use simple 2D decomposition respecting the n limit.
+  if (bestProduct === 0) {
+    let cols = Math.max(1, Math.round(Math.sqrt(n * aspect)))
+    let rows = Math.max(1, Math.floor(n / cols))
+    // Adjust to ensure cols * rows <= n.
+    while (cols * rows > n && cols > 1) cols--
+    while ((cols + 1) * rows <= n) cols++
+    bestCols = cols
+    bestRows = rows
   }
 
   const cols = bestCols
