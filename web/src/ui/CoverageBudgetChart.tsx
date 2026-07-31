@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { PALETTE } from '../theme/palette'
+import { LABEL, SIZE, TABULAR } from '../theme/type'
 import { buildChartModel } from './chartModel'
 import type { BenchmarkResult } from '../lib/benchmark'
 
@@ -21,11 +22,11 @@ export function ChartTable({ rows }: {
   const cell = { padding: '2px 8px' }
   return (
     <table style={{
-      marginTop: 4, borderCollapse: 'collapse', fontSize: 11,
+      marginTop: 4, borderCollapse: 'collapse', ...TABULAR, fontSize: SIZE.micro,
       color: PALETTE.ink, fontVariantNumeric: 'tabular-nums',
     }}>
       <caption style={{
-        captionSide: 'top', textAlign: 'left', fontSize: 11,
+        captionSide: 'top', textAlign: 'left', ...LABEL,
         color: PALETTE.chart.inkMuted, paddingBottom: 2,
       }}>
         Risk-weighted coverage by realised tower count

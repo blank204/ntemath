@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { PALETTE } from '../theme/palette'
+import { LABEL, SIZE, TABULAR, TYPE, WEIGHT } from '../theme/type'
 import { BEATS, LAB_ANCHOR } from './beats'
 import { BeatStage } from './BeatStage'
 import { railProgress, type RailPosition } from './railProgress'
@@ -56,11 +57,15 @@ export function Rail() {
       <header style={{
         position: 'sticky', top: 0, zIndex: 20, display: 'flex',
         justifyContent: 'space-between', alignItems: 'center',
-        padding: '10px 20px', background: PALETTE.canvas,
+        padding: '12px 20px', background: PALETTE.canvas,
         borderBottom: `1px solid ${PALETTE.surfaceRaised}`,
-        font: '13px/1.5 system-ui, sans-serif',
+        fontSize: SIZE.small,
       }}>
-        <span style={{ color: PALETTE.brandOrange, fontWeight: 700, letterSpacing: 1 }}>
+        <span style={{
+          fontFamily: TYPE.display, color: PALETTE.brandOrange,
+          fontWeight: WEIGHT.semibold, fontSize: SIZE.subhead,
+          letterSpacing: '0.16em',
+        }}>
           PYRA
         </span>
         {/* Skip-to-Lab, first thing in the tab order after the wordmark: a
@@ -68,7 +73,9 @@ export function Rail() {
             reach the thing being judged. */}
         <a
           href={`#${LAB_ANCHOR}`}
-          style={{ color: PALETTE.meshTeal, textDecoration: 'none' }}
+          style={{
+            ...LABEL, color: PALETTE.meshTeal, textDecoration: 'none',
+          }}
         >
           Skip to the Lab →
         </a>
@@ -95,24 +102,47 @@ export function Rail() {
                 transition: 'opacity 240ms ease',
               }}
             >
+              {/* The measurement, then the beat's name. The quantity comes
+                  first because it is the thing the beat is about; the name
+                  is the handle for it. */}
               <div style={{
-                color: PALETTE.meshTeal, fontSize: 12, letterSpacing: 1.5,
-                textTransform: 'uppercase',
+                display: 'flex', alignItems: 'baseline', gap: 10,
+                flexWrap: 'wrap',
               }}>
-                {b.kicker}
+                <span style={{
+                  ...TABULAR, fontFamily: TYPE.mono, fontSize: SIZE.small,
+                  fontWeight: WEIGHT.medium, color: PALETTE.meshTeal,
+                }}>
+                  {b.measure}
+                </span>
+                <span aria-hidden style={{
+                  flex: '1 1 40px', height: 1, background: PALETTE.surfaceRaised,
+                }} />
+                <span style={{ ...LABEL, color: PALETTE.chart.inkMuted }}>
+                  {b.kicker}
+                </span>
               </div>
+              {/* The opening beat is the thesis and gets the hero size; the
+                  other six are chapters and share one size. Two sizes, not
+                  seven. */}
               <h2 style={{
-                margin: '10px 0 14px', fontSize: 30, lineHeight: 1.15,
-                fontWeight: 600,
+                margin: '14px 0 16px',
+                fontSize: i === 0 ? SIZE.hero : SIZE.headline,
+                maxWidth: i === 0 ? '15ch' : '19ch',
               }}>
                 {b.headline}
               </h2>
-              <p style={{ margin: 0, fontSize: 15, lineHeight: 1.65 }}>
+              <p style={{
+                margin: 0, fontSize: SIZE.body, lineHeight: 1.65,
+                maxWidth: '58ch',
+              }}>
                 {b.body}
               </p>
               {b.source && (
                 <p style={{
-                  marginTop: 12, fontSize: 12, lineHeight: 1.6,
+                  marginTop: 14, fontSize: SIZE.small, lineHeight: 1.6,
+                  maxWidth: '58ch', paddingLeft: 12,
+                  borderLeft: `1px solid ${PALETTE.surfaceRaised}`,
                   color: PALETTE.chart.inkMuted,
                 }}>
                   {b.source}
@@ -122,9 +152,10 @@ export function Rail() {
                 <a
                   href={b.cta.href}
                   style={{
-                    marginTop: 20, alignSelf: 'flex-start', padding: '10px 16px',
-                    border: `1px solid ${PALETTE.meshTeal}`, borderRadius: 6,
-                    color: PALETTE.meshTeal, textDecoration: 'none', fontSize: 14,
+                    marginTop: 22, alignSelf: 'flex-start', padding: '11px 18px',
+                    border: `1px solid ${PALETTE.meshTeal}`, borderRadius: 4,
+                    color: PALETTE.meshTeal, textDecoration: 'none',
+                    ...LABEL, fontSize: SIZE.small,
                   }}
                 >
                   {b.cta.label}

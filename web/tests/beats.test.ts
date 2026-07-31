@@ -8,6 +8,16 @@ describe('BEATS', () => {
     ])
   })
 
+  it('announces every beat with a quantity, not with a number in a circle', () => {
+    // The measurement chip is the page's structural device, and a device
+    // that encodes nothing is decoration. Every one of them has to carry a
+    // figure the beat is actually about.
+    for (const b of BEATS) {
+      expect(b.measure, `beat ${b.id}`).toMatch(/\d/)
+      expect(b.measure.length).toBeLessThan(40)
+    }
+  })
+
   it('gives every beat a kicker, a headline and a body', () => {
     for (const b of BEATS) {
       expect(b.kicker.length).toBeGreaterThan(2)
@@ -35,7 +45,8 @@ describe('BEATS', () => {
 /** Everything the Rail puts in front of a reader. */
 const railCopy = (): string =>
   BEATS.map((b: Beat) =>
-    [b.kicker, b.headline, b.body, b.source ?? '', b.cta?.label ?? ''].join(' '),
+    [b.measure, b.kicker, b.headline, b.body, b.source ?? '',
+     b.cta?.label ?? ''].join(' '),
   ).join(' ').toLowerCase()
 
 describe('the Rail obeys the same science constraints as the Lab', () => {

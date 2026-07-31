@@ -17,6 +17,15 @@ export const LAB_ANCHOR = 'lab'
 
 export interface Beat {
   id: string
+  /**
+   * The quantity this beat rests on, set in mono above the headline.
+   *
+   * It is the page's structural device and it carries information rather
+   * than decorating: this is a chain of measurements, so each beat is
+   * announced by the measurement it is about. Numbered markers (01 / 02)
+   * would say only that beats come in an order, which the reader can see.
+   */
+  measure: string
   /** The small line above the headline. */
   kicker: string
   headline: string
@@ -29,6 +38,7 @@ export interface Beat {
 export const BEATS: Beat[] = [
   {
     id: 'flash',
+    measure: '45% of fires / 81–93% of area',
     kicker: 'One flash',
     headline: 'Most of what burns was never lit by a person',
     body:
@@ -42,6 +52,7 @@ export const BEATS: Beat[] = [
   },
   {
     id: 'clock',
+    measure: '>40 ms of continuing current',
     kicker: 'The strike, and the clock',
     headline: 'A strike does not become a fire on a schedule',
     body:
@@ -60,6 +71,7 @@ export const BEATS: Beat[] = [
   },
   {
     id: 'gap',
+    measure: 'located to <1 km / scored: none',
     kicker: 'The gap',
     headline: 'Somebody knows where the lightning struck. Nobody knows which strike matters',
     body:
@@ -76,6 +88,7 @@ export const BEATS: Beat[] = [
   },
   {
     id: 'tower',
+    measure: '30 m mast / 5 subsystems',
     kicker: 'The tower',
     headline: 'A camera, a microphone array, and enough compute to decide',
     body:
@@ -84,7 +97,8 @@ export const BEATS: Beat[] = [
       'summer. The camera catches the flash. Three microphones give the ' +
       'bearing from the difference in arrival times. The gap between flash and ' +
       'thunder gives the range. On-tower compute turns those into a coordinate ' +
-      'and a confidence, and only the answer goes over the backhaul.',
+      'and a confidence — running off solar, because there is no grid this ' +
+      'far from the road — and only the answer goes over the backhaul.',
     source:
       'Qatar-built, world-deployed: Qatar has no wildfire problem, it has the ' +
       'summers that qualify the hardware. Time-difference-of-arrival bearing ' +
@@ -93,6 +107,7 @@ export const BEATS: Beat[] = [
   },
   {
     id: 'bang',
+    measure: '340.4 m/s at 15 °C',
     kicker: 'Flash, then bang',
     headline: 'The oldest trick in storm-watching, done properly',
     body:
@@ -110,6 +125,7 @@ export const BEATS: Beat[] = [
   },
   {
     id: 'two',
+    measure: '43.7% → 54.6% triangulated',
     kicker: 'Two towers',
     headline: 'One tower gives you a fix. Two give you an intersection',
     body:
@@ -126,6 +142,7 @@ export const BEATS: Beat[] = [
   },
   {
     id: 'question',
+    measure: '111 towers, 77,037 km²',
     kicker: 'The question',
     headline: 'So where do you put them?',
     body:

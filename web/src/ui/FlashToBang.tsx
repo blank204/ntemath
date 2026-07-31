@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { PALETTE } from '../theme/palette'
+import { LABEL, SIZE, TABULAR, TYPE, WEIGHT } from '../theme/type'
 import {
   phaseAt, speedOfSound, warmAirErrorFraction, delayForRangeKm,
   REFERENCE_SPEED_MS, type FlashState,
@@ -97,14 +98,15 @@ export function FlashScene({ state, distanceKm, tempC, reducedMotion = false }: 
       {/* The clock, which is the whole point of the silence. */}
       <text
         x={VIEW.w - 12} y={30} textAnchor="end"
-        fontFamily="ui-monospace, monospace" fontSize={26}
+        fontFamily={TYPE.mono} fontWeight={WEIGHT.medium} fontSize={26}
+        style={TABULAR}
         fill={state.rangeKm === null ? PALETTE.ink : PALETTE.meshTeal}
       >
         {state.elapsedS.toFixed(2)} s
       </text>
       <text
         x={VIEW.w - 12} y={52} textAnchor="end"
-        fontFamily="ui-monospace, monospace" fontSize={12}
+        fontFamily={TYPE.mono} fontSize={SIZE.small} style={TABULAR}
         fill={PALETTE.chart.inkMuted}
       >
         {state.rangeKm === null
@@ -115,7 +117,7 @@ export function FlashScene({ state, distanceKm, tempC, reducedMotion = false }: 
       {booming && (
         <text
           x={VIEW.towerX} y={VIEW.towerY - 60} textAnchor="middle"
-          fontFamily="ui-monospace, monospace" fontSize={14}
+          fontFamily={TYPE.mono} fontWeight={WEIGHT.medium} fontSize={13}
           fill={PALETTE.heat[2]}
         >
           BOOM
@@ -186,7 +188,7 @@ export function FlashToBang() {
 
   return (
     <div style={panel}>
-      <div style={{ fontWeight: 700, letterSpacing: 1, color: PALETTE.brandOrange }}>
+      <div style={{ ...LABEL, color: PALETTE.brandOrange }}>
         FLASH TO BANG
       </div>
       <p style={{ color: PALETTE.chart.inkMuted, marginTop: 4 }}>
@@ -209,7 +211,7 @@ export function FlashToBang() {
           marginTop: 10, width: '100%', padding: '8px 10px',
           background: PALETTE.surfaceRaised, color: PALETTE.ink,
           border: `1px solid ${PALETTE.chart.axis}`, borderRadius: 6,
-          cursor: 'pointer', fontSize: 12, letterSpacing: 1,
+          cursor: 'pointer', ...LABEL, fontSize: SIZE.small,
         }}
       >
         {running ? 'STRIKE IN PROGRESS' : 'TRIGGER A STRIKE'}

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useModelStore } from '../state/useModelStore'
 import { PALETTE } from '../theme/palette'
+import { LABEL, SIZE, TYPE } from '../theme/type'
 import type { RegionMeta } from '../lib/loadRegion'
 import { loadManifest } from '../lib/loadRegion'
 import { strideKm } from '../lib/pipeline'
@@ -17,7 +18,7 @@ const asText = (v: unknown): string | null =>
 function Note({ label, body }: { label: string; body: string }) {
   return (
     <div style={{ marginTop: 8 }}>
-      <div style={{ color: PALETTE.meshTeal, fontSize: 11, letterSpacing: 0.5 }}>
+      <div style={{ ...LABEL, color: PALETTE.meshTeal }}>
         {label.toUpperCase()}
       </div>
       <div style={{ color: PALETTE.baselineGray, fontSize: 11, lineHeight: 1.5 }}>
@@ -233,7 +234,7 @@ export function RunPanel() {
     maxHeight: 'calc(100% - 32px)', overflowY: 'auto',
     background: PALETTE.surface, color: PALETTE.ink,
     border: `1px solid ${PALETTE.surfaceRaised}`, borderRadius: 8,
-    font: '13px/1.5 system-ui, sans-serif', zIndex: 10,
+    fontSize: SIZE.small, lineHeight: 1.55, zIndex: 10,
   }
 
   // accentColor keeps native form controls on-palette; without it the
@@ -251,7 +252,8 @@ export function RunPanel() {
 
   return (
     <div style={panel}>
-      <div style={{ color: PALETTE.brandOrange, fontWeight: 700, letterSpacing: 1 }}>
+      <div style={{ ...LABEL, fontSize: SIZE.subhead, letterSpacing: '0.16em',
+        fontFamily: TYPE.display, color: PALETTE.brandOrange }}>
         PYRA
       </div>
 

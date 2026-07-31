@@ -1,14 +1,15 @@
 import type { ReactNode } from 'react'
 import { PALETTE } from '../theme/palette'
+import { LABEL, SIZE, TABULAR, TYPE, WEIGHT } from '../theme/type'
 
 /**
  * Stat tile: label, value, optional note. Per the dataviz skill's figure
  * contract — a handful of headline numbers is a KPI row, not a chart, and a
  * single number is never a one-bar bar chart.
  *
- * Values use the font's default proportional figures. `tabular-nums` is for
- * columns that must align vertically (the chart's table view), not for large
- * standalone numbers, where it makes short values look loose.
+ * Values are mono with tabular figures, like every other number on the site:
+ * these recompute on every run, and a proportional 1 next to a proportional 8
+ * makes a row of tiles twitch as the sliders move.
  */
 export function StatTile({ label, value, note }: {
   label: string; value: string; note?: string
@@ -18,14 +19,18 @@ export function StatTile({ label, value, note }: {
       background: PALETTE.surface, border: `1px solid ${PALETTE.surfaceRaised}`,
       borderRadius: 8, padding: '10px 12px', minWidth: 108,
     }}>
-      <div style={{ color: PALETTE.chart.inkMuted, fontSize: 11, letterSpacing: 0.4 }}>
-        {label}
-      </div>
-      <div style={{ color: PALETTE.ink, fontSize: 22, fontWeight: 600, marginTop: 2 }}>
+      <div style={{ ...LABEL, color: PALETTE.chart.inkMuted }}>{label}</div>
+      <div style={{
+        ...TABULAR, fontFamily: TYPE.mono, color: PALETTE.ink,
+        fontSize: 22, fontWeight: WEIGHT.medium, marginTop: 3,
+      }}>
         {value}
       </div>
       {note && (
-        <div style={{ color: PALETTE.chart.inkMuted, fontSize: 10, marginTop: 3, lineHeight: 1.4 }}>
+        <div style={{
+          color: PALETTE.chart.inkMuted, fontSize: SIZE.micro - 1,
+          marginTop: 4, lineHeight: 1.45,
+        }}>
           {note}
         </div>
       )}
@@ -34,21 +39,28 @@ export function StatTile({ label, value, note }: {
 }
 
 /**
- * The one number the view leads with. Exactly one per view, >= 48px, in the
- * same sans as everything else — a display face here reads as decoration.
+ * The one number the view leads with. Exactly one per view.
+ *
+ * Mono at 48px is a deliberate call: this is an instrument reading, not a
+ * marketing figure, and setting it in the display face would make it the
+ * loudest thing on a page whose loudest thing is supposed to be the map.
  */
 export function HeroFigure({ label, value, note }: {
   label: string; value: string; note: string
 }) {
   return (
     <div style={{ padding: '4px 0 10px' }}>
-      <div style={{ color: PALETTE.chart.inkMuted, fontSize: 11, letterSpacing: 0.4 }}>
-        {label}
-      </div>
-      <div style={{ color: PALETTE.ink, fontSize: 48, fontWeight: 600, lineHeight: 1.05 }}>
+      <div style={{ ...LABEL, color: PALETTE.chart.inkMuted }}>{label}</div>
+      <div style={{
+        ...TABULAR, fontFamily: TYPE.mono, color: PALETTE.ink,
+        fontSize: 48, fontWeight: WEIGHT.medium, lineHeight: 1.05, marginTop: 4,
+      }}>
         {value}
       </div>
-      <div style={{ color: PALETTE.chart.inkMuted, fontSize: 11, marginTop: 4, lineHeight: 1.5 }}>
+      <div style={{
+        color: PALETTE.chart.inkMuted, fontSize: SIZE.small,
+        marginTop: 6, lineHeight: 1.55,
+      }}>
         {note}
       </div>
     </div>

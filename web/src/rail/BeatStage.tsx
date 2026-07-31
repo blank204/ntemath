@@ -1,5 +1,6 @@
 import { PALETTE } from '../theme/palette'
 import { FlashToBang } from '../ui/FlashToBang'
+import { TowerCanvas } from './tower/TowerCanvas'
 
 /**
  * The Rail's visual, as a pure function of which beat is active and how far
@@ -121,43 +122,11 @@ export function BeatStage({ beatId, t, reducedMotion = false }: StageProps) {
       )
     }
 
-    case 'tower': {
-      // Exploded schematic. Placeholder for the 3D build, and honest as a
-      // schematic in its own right: every part is one the brief names.
-      const spread = 26 * t
-      const parts: Array<[string, number]> = [
-        ['camera head', 0],
-        ['microphone array', 1],
-        ['compute', 2],
-        ['solar', 3],
-        ['backhaul', 4],
-      ]
-      return frame(
-        <>
-          <line x1={W / 2} y1={70} x2={W / 2} y2={H - 40}
-            stroke={PALETTE.chart.axis} strokeWidth={1} strokeDasharray="3 5" />
-          {parts.map(([label, i]) => {
-            const y = 80 + i * 46 + spread * (i - 2)
-            return (
-              <g key={label}>
-                <rect
-                  x={W / 2 - 46} y={y - 15} width={92} height={30} rx={4}
-                  fill={PALETTE.surfaceRaised} stroke={PALETTE.meshTeal}
-                  strokeWidth={1}
-                />
-                <text
-                  x={W / 2 + 60} y={y + 4} fontSize={12}
-                  fill={PALETTE.chart.inkMuted}
-                >
-                  {label}
-                </text>
-              </g>
-            )
-          })}
-        </>,
-        'An exploded view of the tower: camera head, microphone array, compute, solar, backhaul',
-      )
-    }
+    case 'tower':
+      // Three dimensions where there is a GPU, the flat schematic where
+      // there is not — a locked-down machine or a blocklisted driver gets
+      // the same information, drawn differently, rather than a hole.
+      return <TowerCanvas t={t} fallback={<TowerSchematic t={t} />} />
 
     case 'bang':
       return <FlashToBang />
@@ -213,4 +182,45 @@ export function BeatStage({ beatId, t, reducedMotion = false }: StageProps) {
       )
     }
   }
+}
+
+/**
+ * The flat version of the tower: the same five parts, separating on the same
+ * progress. Used where WebGL is unavailable, and it was the whole beat until
+ * the 3D one existed.
+ */
+export function TowerSchematic({ t }: { t: number }) {
+      const spread = 26 * t
+      const parts: Array<[string, number]> = [
+        ['camera head', 0],
+        ['microphone array', 1],
+        ['compute', 2],
+        ['solar', 3],
+        ['backhaul', 4],
+      ]
+      return frame(
+        <>
+          <line x1={W / 2} y1={70} x2={W / 2} y2={H - 40}
+            stroke={PALETTE.chart.axis} strokeWidth={1} strokeDasharray="3 5" />
+          {parts.map(([label, i]) => {
+            const y = 80 + i * 46 + spread * (i - 2)
+            return (
+              <g key={label}>
+                <rect
+                  x={W / 2 - 46} y={y - 15} width={92} height={30} rx={4}
+                  fill={PALETTE.surfaceRaised} stroke={PALETTE.meshTeal}
+                  strokeWidth={1}
+                />
+                <text
+                  x={W / 2 + 60} y={y + 4} fontSize={12}
+                  fill={PALETTE.chart.inkMuted}
+                >
+                  {label}
+                </text>
+              </g>
+            )
+          })}
+        </>,
+        'An exploded view of the tower: camera head, microphone array, compute, solar, backhaul',
+      )
 }

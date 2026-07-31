@@ -1,4 +1,5 @@
 import { PALETTE } from '../theme/palette'
+import { LABEL, SIZE } from '../theme/type'
 import { useModelStore } from '../state/useModelStore'
 import { CoverageBudgetChart } from './CoverageBudgetChart'
 import { HeroFigure, KpiRow, StatTile } from './StatTile'
@@ -28,7 +29,7 @@ export function BenchmarkPanel() {
       position: 'absolute', right: 16, top: 16, width: 520, padding: 16,
       background: PALETTE.surface, color: PALETTE.ink,
       border: `1px solid ${PALETTE.surfaceRaised}`, borderRadius: 8,
-      font: '13px/1.5 system-ui, sans-serif', zIndex: 10,
+      fontSize: SIZE.small, lineHeight: 1.55, zIndex: 10,
       maxHeight: 'calc(100vh - 32px)', overflowY: 'auto',
     }}>
       <HeroFigure
@@ -51,14 +52,13 @@ export function BenchmarkPanel() {
       </KpiRow>
 
       <h3 style={{
-        margin: '16px 0 2px', fontSize: 12, fontWeight: 600,
-        color: PALETTE.chart.inkMuted, letterSpacing: 0.4,
+        margin: '18px 0 4px', ...LABEL, color: PALETTE.chart.inkMuted,
       }}>
         Risk-weighted coverage against tower budget
       </h3>
       <CoverageBudgetChart result={benchmark} />
 
-      <p style={{ color: PALETTE.chart.inkMuted, fontSize: 11, marginTop: 10 }}>
+      <p style={{ color: PALETTE.chart.inkMuted, fontSize: SIZE.small, marginTop: 10, lineHeight: 1.6 }}>
         {coverageSentence({
           coveredFraction: result.coveredFraction,
           strideKm: benchmark.strideKm,
@@ -69,8 +69,7 @@ export function BenchmarkPanel() {
       {triangulation && triangulation.points.length > 0 && (
         <div style={{ marginTop: 16, borderTop: `1px solid ${PALETTE.surfaceRaised}` }}>
           <h3 style={{
-            margin: '10px 0 2px', fontSize: 12, fontWeight: 600,
-            color: PALETTE.chart.inkMuted, letterSpacing: 0.4,
+            margin: '12px 0 4px', ...LABEL, color: PALETTE.chart.inkMuted,
           }}>
             The same network, scored on two towers instead of one
           </h3>
@@ -89,7 +88,7 @@ export function BenchmarkPanel() {
               note={`same ${triangulation.atBudget.scored}; risk-driven leads by ${
                 Math.abs(triangulation.atBudget.deltaPP).toFixed(1)} pp`} />
           </KpiRow>
-          <p style={{ color: PALETTE.chart.inkMuted, fontSize: 11, marginTop: 8 }}>
+          <p style={{ color: PALETTE.chart.inkMuted, fontSize: SIZE.small, marginTop: 8, lineHeight: 1.6 }}>
             {triangulationSentence(benchmark, triangulation)}
           </p>
           {doubleCoverage && (
@@ -103,7 +102,7 @@ export function BenchmarkPanel() {
                   value={`−${(100 * (doubleCoverage.siteSingle - doubleCoverage.tunedSingle)).toFixed(1)} pp`}
                   note="single coverage given up to get it" />
               </KpiRow>
-              <p style={{ color: PALETTE.chart.inkMuted, fontSize: 11, marginTop: 8 }}>
+              <p style={{ color: PALETTE.chart.inkMuted, fontSize: SIZE.small, marginTop: 8, lineHeight: 1.6 }}>
                 {doubleCoverageSentence(doubleCoverage)}
               </p>
             </>
@@ -111,7 +110,7 @@ export function BenchmarkPanel() {
         </div>
       )}
       {seedNote && (
-        <p style={{ color: PALETTE.chart.inkMuted, fontSize: 11 }}>{seedNote}</p>
+        <p style={{ color: PALETTE.chart.inkMuted, fontSize: SIZE.small, lineHeight: 1.6 }}>{seedNote}</p>
       )}
     </section>
   )
