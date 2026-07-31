@@ -75,7 +75,7 @@ So detection-time claims can only be made where the fire model is validated. It 
 
 ## Outstanding for a human
 
-1. **Confirm the first-load camera framing** in a browser (~30 seconds). It is fixed and unit-tested including the negative case, but nobody has watched it happen — the tooling used to check it broke.
+1. ~~Confirm the first-load camera framing in a browser.~~ **✅ Verified by the user, 2026-07-31.** Runs correctly from `cd web && npm run dev`.
 2. **Domain-restrict the MapTiler key** in the MapTiler console once a deploy URL exists. Vite inlines it into the bundle, which is normal for MapTiler, but it means the key is public on deploy.
 3. **Justify `detect_km = 2.0`**, or present it as a stated assumption with a sensitivity range. Every coverage number and the global cost estimate inherit it, and node count scales as 1/r². This is the number a technical judge is most likely to push on.
 
