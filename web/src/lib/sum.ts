@@ -16,7 +16,7 @@ export function pairwiseSum(
   const n = to - from
   if (n <= 0) return 0
 
-  if (n <= 8) {
+  if (n < 8) {
     let s = 0
     for (let i = from; i < to; i++) s += a[i]
     return s
