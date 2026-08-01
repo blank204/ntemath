@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { BeatStage } from '../src/rail/BeatStage'
+import { BeatStage, TowerSchematic } from '../src/rail/BeatStage'
 import { Rail } from '../src/rail/Rail'
 import { BEATS, LAB_ANCHOR } from '../src/rail/beats'
 import { PALETTE } from '../src/theme/palette'
@@ -10,32 +10,38 @@ const stage = (beatId: string, t: number, reducedMotion = false) =>
     <BeatStage beatId={beatId} t={t} reducedMotion={reducedMotion} />)
 
 describe('BeatStage', () => {
-  it('renders every beat the Rail can ask for', () => {
-    // A beat whose stage falls through to the default would show the closing
-    // scatter under, say, the holdover distribution's text.
+  it('renders an inset for exactly the beats that declare one', () => {
+    // Three beats earn a diagram; the rest get nothing rather than filler.
+    // A beat that quietly grew one back would be the "way too simple"
+    // illustration-of-a-noun problem returning, and a beat that quietly lost
+    // one would drop a measured shape off the page.
+    const withInset = BEATS.filter((b) => b.inset).map((b) => b.id)
+    expect(withInset).toEqual(['clock', 'bang', 'two'])
     for (const b of BEATS) {
       const html = stage(b.id, 0.5)
-      expect(html.length, `beat ${b.id}`).toBeGreaterThan(100)
+      if (b.inset) expect(html.length, `beat ${b.id}`).toBeGreaterThan(100)
+      else expect(html, `beat ${b.id}`).toBe('')
     }
   })
 
-  it('describes each stage to a screen reader', () => {
+  it('describes every inset it does render to a screen reader', () => {
     for (const b of BEATS) {
-      if (b.id === 'bang') continue           // its own component carries this
-      expect(stage(b.id, 0.5)).toContain('aria-label=')
+      if (!b.inset || b.id === 'bang') continue   // bang carries its own
+      expect(stage(b.id, 0.5), `beat ${b.id}`).toContain('aria-label=')
     }
   })
 
-  it('lights the opening flash on load and dims it as the reader leaves', () => {
-    // A beat that opens the page sits at t = 0.5, not 0 — half of it is
-    // above the fold — so the cold open has to still be lit there.
-    expect(stage('flash', 0)).toContain(PALETTE.heat[4])
-    expect(stage('flash', 0.5)).toContain(PALETTE.heat[4])
-    expect(stage('flash', 0.9)).not.toContain(PALETTE.heat[4])
-  })
-
-  it('never flashes at full brightness when reduced motion is requested', () => {
-    expect(stage('flash', 0, true)).not.toContain(PALETTE.heat[4])
+  it('still offers the tower to a machine with no WebGL', () => {
+    // The pinned hero is a WebGL canvas. On a locked-down machine or a
+    // blocklisted GPU it falls back to the schematic, and that fallback has
+    // to keep naming all five subsystems — otherwise the reader who cannot
+    // run the 3D version silently gets a different product.
+    const flat = renderToStaticMarkup(<TowerSchematic t={0.6} />)
+    for (const word of ['camera head', 'microphone array', 'compute',
+                        'solar', 'backhaul']) {
+      expect(flat).toContain(word)
+    }
+    expect(flat).toContain('aria-label=')
   })
 
   it('moves the holdover marker with the reader', () => {

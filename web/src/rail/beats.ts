@@ -47,10 +47,28 @@ export interface Beat {
   figureNote: string
   /** The small line above the figure. */
   eyebrow: string
-  /** Pinned on the left, set large enough that the split cuts it in half. */
+  /** The beat's argument, in the column under the figure. One line. */
   headline: string
-  /** At most BODY_WORD_CEILING words. Three lines on screen. */
+  /**
+   * At most BODY_WORD_CEILING words.
+   *
+   * NOT rendered in the column any more — it reads in end matter, under the
+   * beat's figure, with the source. The column carries the eyebrow, the
+   * figure, what the figure measures, and the headline; adding a paragraph
+   * back into it is how the page got called cluttered.
+   */
   body: string
+  /**
+   * A compact diagram in the column, for the three beats where the visual
+   * carries something the words cannot.
+   *
+   * Most beats have none. The left half is the tower for the whole rail now,
+   * so a beat only earns a diagram of its own if it is showing a measured
+   * shape — a distribution, a crossing, a clock — rather than illustrating
+   * its own noun. A lightning bolt drawn beside the word "lightning" was the
+   * kind of thing that got the first pass called too simple.
+   */
+  inset?: 'holdover' | 'flash-to-bang' | 'intersection'
   /** Where the numbers in `body` and `figure` come from. Required if any. */
   source?: string
   cta?: { label: string; href: string }
@@ -74,6 +92,7 @@ export const BEATS: Beat[] = [
   },
   {
     id: 'clock',
+    inset: 'holdover',
     figure: '>40 ms',
     figureNote: 'of continuing current, or the fuel never lights',
     eyebrow: 'The strike, and the clock',
@@ -129,6 +148,7 @@ export const BEATS: Beat[] = [
   },
   {
     id: 'bang',
+    inset: 'flash-to-bang',
     figure: '340.4 m/s',
     figureNote: 'the speed of sound at 15 °C — and it moves with the air',
     eyebrow: 'Flash, then bang',
@@ -146,6 +166,7 @@ export const BEATS: Beat[] = [
   },
   {
     id: 'two',
+    inset: 'intersection',
     figure: '54.6%',
     figureNote: 'triangulated, up from 43.7% — and it is a trade, not a win',
     eyebrow: 'Two towers',

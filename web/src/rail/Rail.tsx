@@ -2,22 +2,35 @@ import { useEffect, useRef, useState } from 'react'
 import { PALETTE } from '../theme/palette'
 import { FIGURE, LABEL, SIZE, TABULAR, TRACK, TYPE, WEIGHT, WIDTH } from '../theme/type'
 import { BEATS, LAB_ANCHOR, SOURCES_ANCHOR } from './beats'
-import { BeatStage } from './BeatStage'
+import { BeatStage, TowerSchematic } from './BeatStage'
+import { TowerCanvas } from './tower/TowerCanvas'
 import { RailSeam } from './RailSeam'
 import { railProgress, type RailPosition } from './railProgress'
 
 /**
  * The Rail: seven beats, as a pinned split.
  *
- * Left half is pinned and cropped by the frame — the stage at full height and,
- * behind it, the beat headline set large enough that the split cuts it in half.
- * Right half scrolls: an eyebrow, one enormous figure, and three lines. The
- * figure is the content; the sentence under it is the footnote.
+ * TEXT ON ONE SIDE ONLY. The left half is pinned and holds the tower and
+ * nothing else — no headline, no caption. The first pass put a per-beat
+ * headline over there as well, and the verdict was that the page was
+ * cluttered and that the reference site "doesn't have text on both sides".
+ * That is right, and the reason is subtler than it first looks: STR8FIRE's
+ * left-hand line never changes, so it stops being something to read and
+ * becomes texture. A line that swaps every beat cannot do that — it asks to
+ * be read, opposite a column that is also asking to be read.
  *
- * The pane clips deliberately (`overflow: hidden`). That is what crops the
- * headline mid-word at the seam and the stage at the top and bottom of the
- * frame, and it is the whole composition — a headline that fits inside its
- * margins is the layout this replaced.
+ * So the left half is the object. One tower for the whole rail, coming apart
+ * a subsystem at a time on overall scroll progress, which is the move both
+ * references make: one thing carries the page and the words go past it.
+ *
+ * The right half is the only text: an eyebrow, one enormous figure, what that
+ * figure measures, and the beat's headline. Three of the seven beats also
+ * carry a small inset, for the visuals that show a measured shape rather than
+ * illustrating a noun.
+ *
+ * The pane clips deliberately (`overflow: hidden`): that is what crops the
+ * tower at the top and bottom of the frame, so it reads as an object too big
+ * for the picture rather than a render sitting in a letterbox.
  *
  * Progress within a beat comes from `railProgress`, which is pure and tested —
  * this component only measures the sections and hands the numbers over.
@@ -38,16 +51,6 @@ function useIsSplit(): boolean {
   }, [])
   return split
 }
-
-/**
- * Off-screen but in the accessibility tree. `display: none` would take it out
- * of both, which is the mistake this guards against.
- */
-const SR_ONLY = {
-  position: 'absolute', width: 1, height: 1, margin: -1, padding: 0,
-  overflow: 'hidden', clipPath: 'inset(50%)', whiteSpace: 'nowrap',
-  border: 0,
-} as const
 
 /** The `+` crop marks both reference sites put at the corners of the grid. */
 function CropMark({ at }: { at: 'tl' | 'tr' | 'bl' | 'br' }) {
@@ -105,7 +108,6 @@ export function Rail() {
   }, [])
 
   const active = pos.index < 0 ? 0 : pos.index
-  const beat = BEATS[active]
   /** Progress through the whole rail, for the seam and the meter. */
   const overall = (active + pos.t) / BEATS.length
 
@@ -169,55 +171,23 @@ export function Rail() {
               justifyContent: 'center', zIndex: 1, opacity: 0.92,
             }}
           >
-            {/* Grid with centred content, not a plain block: the tall stages
-                fill the pane and crop, and the landscape ones sit centred in
-                it. Giving the wrapper a height without centring left every
-                landscape stage pinned to the top of the frame with a void
-                under it. */}
-            <div style={{
-              width: '100%', height: '100%',
-              display: 'grid', placeItems: 'center',
-            }}>
-              <BeatStage beatId={beat.id} t={pos.t} />
+            {/* THE OBJECT, and the only thing on this side of the seam.
+                One tower for the whole rail, coming apart a subsystem at a
+                time as the reader scrolls — driven by overall progress, not
+                by the beat, so it is continuous rather than seven diagrams
+                swapping places.
+
+                There is no headline over here any more. Both reference sites
+                put text on one side only: STR8FIRE's left-hand line never
+                changes, so it reads as texture rather than as something to
+                read. A per-beat headline here asked the reader to read two
+                columns at once, which is what made the page cluttered. */}
+            <div style={{ width: '100%', height: '100%' }}>
+              <TowerCanvas
+                t={overall} height="100%" showParts={false}
+                fallback={<TowerSchematic t={overall} />}
+              />
             </div>
-          </div>
-
-          {/* The headline, behind the stage and wider than the pane, so the
-              seam cuts it mid-word. `hero` is a ceiling: it clamps down on a
-              narrow window rather than reflowing into a paragraph.
-
-              Presentational, and `aria-hidden`: it shows one beat at a time,
-              so as a heading it would be a document outline that changes
-              under the reader as they scroll. The real seven live in the
-              column, one per section. */}
-          <div
-            aria-hidden
-            style={{
-              position: 'absolute', left: '4vw', bottom: '9vh',
-              // 116%, not 150%. At 150% the lines still broke on word
-              // boundaries and the clip then swallowed whole words, so it
-              // read as broken grammar. At 116% the overflow is a character
-              // or two: the seam cuts the last word mid-letter, which is the
-              // move — a slab of type the frame is too small for, not a
-              // sentence with its end missing.
-              //
-              // Only when there is a split to be cut by. Stacked, there is no
-              // seam, so an overflowing headline is just a headline with its
-              // right-hand side missing and nothing to explain why.
-              width: isSplit ? '116%' : '92%', margin: 0, zIndex: 2,
-              fontFamily: TYPE.display, fontStretch: WIDTH.displayWide,
-              fontWeight: WEIGHT.medium, letterSpacing: TRACK.display,
-              lineHeight: 0.92,
-              fontSize: `clamp(38px, 6.4vw, ${SIZE.hero}px)`,
-              color: PALETTE.ink, opacity: 0.94,
-              // Caps. At 96px, sentence case reads as a sentence — something
-              // to be read left to right — and this is not one: it is a slab
-              // of type the split cuts through. Caps also crop cleanly, which
-              // lower-case descenders do not.
-              textTransform: 'uppercase',
-            }}
-          >
-            {beat.headline}
           </div>
 
           <CropMark at="tl" />
@@ -269,13 +239,6 @@ export function Rail() {
                 transition: 'opacity 300ms ease',
               }}
             >
-              {/* The heading, carried here rather than on the pinned pane.
-                  The pane shows one beat at a time and swaps as the reader
-                  scrolls; the outline of the document must not. Visually
-                  hidden, because the same words are already on screen at
-                  96px on the other side of the seam. */}
-              <h2 style={SR_ONLY}>{b.headline}</h2>
-
               <div style={{ ...LABEL, color: PALETTE.inkMuted, marginBottom: 14 }}>
                 / {b.eyebrow}
               </div>
@@ -309,14 +272,27 @@ export function Rail() {
                 {b.figureNote}
               </p>
 
-              <p style={{
-                fontFamily: TYPE.mono, fontStretch: WIDTH.labelNarrow,
-                fontSize: SIZE.small, letterSpacing: TRACK.label,
-                textTransform: 'uppercase', lineHeight: 1.9,
-                color: PALETTE.ink, margin: '18px 0 0', maxWidth: '42ch',
+              {/* The beat's argument, and the real heading — the pinned pane
+                  carries no text now, so this is the only place the headline
+                  appears and the document outline is genuine rather than a
+                  hidden duplicate. The body paragraph that used to sit under
+                  it has moved to end matter: eyebrow, figure, unit, one line
+                  is the whole column. */}
+              <h2 style={{
+                fontFamily: TYPE.display, fontStretch: WIDTH.displayWide,
+                fontWeight: WEIGHT.medium, letterSpacing: TRACK.display,
+                fontSize: `clamp(21px, 2.1vw, ${SIZE.headline}px)`,
+                lineHeight: 1.16, color: PALETTE.ink,
+                margin: '22px 0 0', maxWidth: '20ch',
               }}>
-                {b.body}
-              </p>
+                {b.headline}
+              </h2>
+
+              {b.inset && (
+                <div style={{ marginTop: 26, maxWidth: 420 }}>
+                  <BeatStage beatId={b.id} t={i === active ? pos.t : 0} />
+                </div>
+              )}
 
               {b.cta && (
                 <a
@@ -400,8 +376,17 @@ function SourceNotes() {
           }}>
             {b.figure}
           </div>
+          {/* The body paragraph the column used to carry. It did not get cut
+              when the column came down to a figure and one line — it reads
+              here, first, as the plain-language version of the beat. */}
           <p style={{
             fontFamily: TYPE.body, fontSize: SIZE.body, lineHeight: 1.65,
+            color: PALETTE.ink, margin: '0 0 10px', maxWidth: '52ch',
+          }}>
+            {b.body}
+          </p>
+          <p style={{
+            fontFamily: TYPE.body, fontSize: SIZE.small, lineHeight: 1.7,
             color: PALETTE.inkMuted, margin: 0, maxWidth: '52ch',
           }}>
             {b.source}

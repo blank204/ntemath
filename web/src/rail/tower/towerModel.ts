@@ -92,6 +92,42 @@ export function explodedY(part: TowerPart, t: number): number {
   return part.y + ((part.y - mid) / half) * EXPLODE_SPREAD_M * clamped
 }
 
+/**
+ * The scroll window in which the assembly opens, as a fraction of the whole
+ * rail. Before it the tower stands built; after it, fully apart.
+ *
+ * Not the whole 0..1: a reader arriving at the page should meet a tower, not
+ * a diagram mid-explosion, and the last stretch holds the open state still
+ * long enough to be looked at.
+ */
+export const OPEN_BEGINS = 0.12
+export const OPEN_ENDS = 0.92
+
+/** How much of a part's window overlaps its neighbour's. */
+const OVERLAP = 0.5
+
+/**
+ * How far part `index` has opened at overall rail progress `t`.
+ *
+ * Each part gets its own window and they are staggered top-down, so the
+ * assembly comes apart a piece at a time rather than all five sliding at once
+ * — which read as a single object being stretched rather than as a machine
+ * being taken to bits. The windows overlap by half, so something is always
+ * moving and the sequence never stalls between parts.
+ *
+ * Smoothstepped, so a part eases into and out of its travel instead of
+ * starting and stopping dead at the window edges.
+ */
+export function partProgress(
+  index: number, t: number, count = TOWER_PARTS.length,
+): number {
+  const span = (OPEN_ENDS - OPEN_BEGINS) / (1 + (count - 1) * OVERLAP)
+  const start = OPEN_BEGINS + index * span * OVERLAP
+  const u = (t - start) / span
+  const c = Math.min(1, Math.max(0, u))
+  return c * c * (3 - 2 * c)
+}
+
 /** Height of each lattice cross-brace, metres. */
 export function latticeRungs(step = 2.5): number[] {
   const out: number[] = []

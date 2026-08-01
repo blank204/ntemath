@@ -1,11 +1,18 @@
 import { PALETTE } from '../theme/palette'
 import { SIZE, TRACK, TYPE, WIDTH } from '../theme/type'
 import { FlashToBang } from '../ui/FlashToBang'
-import { TowerCanvas } from './tower/TowerCanvas'
 
 /**
- * The Rail's visual, as a pure function of which beat is active and how far
- * through it the reader is.
+ * A beat's inset diagram, as a pure function of which beat is active and how
+ * far through it the reader is.
+ *
+ * ONLY THREE BEATS HAVE ONE. This used to render a visual for all seven, on
+ * the pinned left half, and the verdict was that they were "way too simple" —
+ * which was fair: a polyline lightning bolt beside the word "lightning" is an
+ * illustration of a noun, not information. The left half is now the tower for
+ * the whole rail, and a beat earns a diagram here only when the picture shows
+ * a measured shape the sentence cannot: a distribution with a tail, two
+ * ranges crossing, a clock running in real time. Everything else returns null.
  *
  * No timers and no refs: `t` comes from the scroll position, so every frame
  * of every beat can be rendered — and asserted — at any point without
@@ -15,6 +22,11 @@ export interface StageProps {
   beatId: string
   /** Progress through the beat, 0..1. */
   t: number
+  /**
+   * Kept in the type for callers, unused by the insets that remain: the one
+   * stage that animated on a timer was the opening flash, and it is gone.
+   * The tower honours the preference itself, in TowerCanvas.
+   */
   reducedMotion?: boolean
 }
 
@@ -44,33 +56,6 @@ const frame = (children: React.ReactNode, label: string) => (
   </svg>
 )
 
-/**
- * Portrait, and close to the pinned pane's own aspect (roughly 3:4).
- *
- * A much taller box would be sliced so hard horizontally that the subject
- * blows up past the frame edges; this crops the top and bottom, which is the
- * intent, and leaves the ground contact inside the visible band.
- */
-const TALL_W = 560
-const TALL_H = 820
-
-/**
- * A stage that fills the pinned pane and is cropped by it.
- *
- * `slice` rather than the default `meet`: the point is that the subject runs
- * off the top and bottom of the frame. A visual scaled to fit inside its box
- * is a diagram in a letterbox, which is the composition this replaced.
- */
-const tallFrame = (children: React.ReactNode, label: string) => (
-  <svg
-    viewBox={`0 0 ${TALL_W} ${TALL_H}`} role="img" aria-label={label}
-    preserveAspectRatio="xMidYMid slice"
-    style={{ display: 'block', width: '100%', height: '100%' }}
-  >
-    {children}
-  </svg>
-)
-
 /** Gamma(k=1.5) density, the shape of the holdover distribution. */
 function gammaPath(): string {
   const pts: string[] = []
@@ -82,76 +67,8 @@ function gammaPath(): string {
   return `M ${pts.join(' L ')}`
 }
 
-export function BeatStage({ beatId, t, reducedMotion = false }: StageProps) {
+export function BeatStage({ beatId, t }: StageProps) {
   switch (beatId) {
-    case 'flash': {
-      // One strike, held bright through the first half of its beat and
-      // dimming as the reader scrolls off it. The threshold is 0.6 rather
-      // than something near zero because a beat that opens the page starts
-      // at t = 0.5 — half of it is already above the fold — and the cold
-      // open has to be lit when the page loads.
-      const hot = t < 0.6 && !reducedMotion
-      const core = hot ? PALETTE.heat[4] : PALETTE.heat[2]
-      // The channel runs off the top of the frame and reaches ground low in
-      // it: the reader is under the storm, not looking at a diagram of one.
-      const CHANNEL = 'M 236 -40 L 274 150 L 246 214 L 292 352 L 262 424 '
-        + 'L 300 552 L 280 618 L 296 690'
-      // Two, short. Three long ones read as a second bolt rather than as
-      // branches off this one.
-      const BRANCHES = [
-        'M 274 150 L 224 244',
-        'M 292 352 L 344 452',
-      ]
-      const GROUND = 690
-      return tallFrame(
-        <>
-          {/* The glow: the same channel, wider and faint, under the core.
-              Two tight passes rather than one broad one — a single 26px
-              stroke at low alpha read as a grey smudge beside the bolt
-              instead of as light coming off it. Filters would do this
-              properly and cost a composite on every scroll frame, which is
-              not affordable on the laptop GPU this has to run on. */}
-          <path
-            d={CHANNEL} fill="none" stroke={core}
-            strokeWidth={hot ? 16 : 9} opacity={hot ? 0.1 : 0.05}
-            strokeLinecap="round" strokeLinejoin="round"
-          />
-          <path
-            d={CHANNEL} fill="none" stroke={core}
-            strokeWidth={hot ? 9 : 5} opacity={hot ? 0.22 : 0.1}
-            strokeLinecap="round" strokeLinejoin="round"
-          />
-          {BRANCHES.map((d) => (
-            <path
-              key={d} d={d} fill="none" stroke={core}
-              strokeWidth={hot ? 2.5 : 1.5} opacity={hot ? 0.5 : 0.28}
-              strokeLinecap="round" strokeLinejoin="round"
-            />
-          ))}
-          <path
-            d={CHANNEL} fill="none" stroke={core}
-            strokeWidth={hot ? 6 : 3} opacity={hot ? 1 : 0.75}
-            strokeLinecap="round" strokeLinejoin="round"
-          />
-          {/* Where it lands. The ground is unwatched, which is the beat: the
-              contact is bright and there is nothing near it. */}
-          <ellipse
-            cx={296} cy={GROUND} rx={26 + 150 * t} ry={5 + 16 * t}
-            fill="none" stroke={PALETTE.chart.axis} strokeWidth={1}
-            opacity={0.7}
-          />
-          <ellipse
-            cx={296} cy={GROUND} rx={12 + 60 * t} ry={3 + 7 * t}
-            fill="none" stroke={PALETTE.chart.axis} strokeWidth={1}
-            opacity={0.45}
-          />
-          <line x1={0} y1={GROUND} x2={TALL_W} y2={GROUND}
-            stroke={PALETTE.chart.axis} strokeWidth={1} />
-        </>,
-        'A single lightning strike reaching unwatched ground',
-      )
-    }
-
     case 'clock': {
       // The holdover distribution: most fires appear early, and the tail
       // runs for weeks. A marker walks it as the reader scrolls.
@@ -178,45 +95,6 @@ export function BeatStage({ beatId, t, reducedMotion = false }: StageProps) {
         'The holdover delay between a strike and a detectable fire, a long-tailed distribution',
       )
     }
-
-    case 'gap': {
-      // Located, everywhere. Scored against the ground, nowhere.
-      const dots = Array.from({ length: 24 }, (_, i) => ({
-        x: 50 + (i % 8) * 60, y: 90 + Math.floor(i / 8) * 70,
-        scored: i === 11,
-      }))
-      return frame(
-        <>
-          {dots.map((d, i) => (
-            <circle
-              key={i} cx={d.x} cy={d.y} r={d.scored ? 7 : 4}
-              fill={d.scored ? PALETTE.heat[2] : PALETTE.chart.axis}
-              opacity={d.scored ? 1 : 0.5 + 0.5 * t}
-            />
-          ))}
-          <text x={W / 2} y={40} textAnchor="middle" {...CAPTION}
-            fill={PALETTE.chart.inkMuted}>
-            EVERY STROKE, LOCATED
-          </text>
-        </>,
-        'Many located strokes, only one of which will start a fire',
-      )
-    }
-
-    case 'tower':
-      // Three dimensions where there is a GPU, the flat schematic where
-      // there is not — a locked-down machine or a blocklisted driver gets
-      // the same information, drawn differently, rather than a hole.
-      // The pinned hero, at frame height and cropped by the pane, rather than
-      // a render in a box. The parts list is off here — it collided with the
-      // headline — and the five subsystems are named in the beat's figureNote
-      // and its source note instead.
-      return (
-        <TowerCanvas
-          t={t} height={880} showParts={false}
-          fallback={<TowerSchematic t={t} />}
-        />
-      )
 
     case 'bang':
       return <FlashToBang />
@@ -250,23 +128,11 @@ export function BeatStage({ beatId, t, reducedMotion = false }: StageProps) {
       )
     }
 
-    default: {
-      // The question. A scatter that firms up as the reader arrives at it —
-      // the network the Lab below is about to argue over.
-      const towers = Array.from({ length: 28 }, (_, i) => ({
-        x: 40 + ((i * 97) % (W - 80)),
-        y: 60 + ((i * 143) % (H - 120)),
-      }))
-      return frame(
-        <>
-          {towers.map((p, i) => (
-            <circle key={i} cx={p.x} cy={p.y} r={3.5}
-              fill={PALETTE.signal} opacity={0.25 + 0.75 * t} />
-          ))}
-        </>,
-        'A scattered network of towers over the demo region',
-      )
-    }
+    // Every other beat has no inset. The tower carries the left half
+    // for the whole rail, and a beat that would only illustrate its own
+    // noun gets nothing rather than filler.
+    default:
+      return null
   }
 }
 

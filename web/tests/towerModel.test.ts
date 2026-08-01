@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   TOWER_PARTS, MAST_HEIGHT_M, explodedY, latticeRungs, partAt,
+  partProgress, OPEN_BEGINS, OPEN_ENDS,
 } from '../src/rail/tower/towerModel'
 import { BEATS } from '../src/rail/beats'
 
@@ -78,6 +79,70 @@ describe('explodedY', () => {
         prev = now
       }
     }
+  })
+})
+
+describe('partProgress — the staged reveal', () => {
+  const idx = TOWER_PARTS.map((_, i) => i)
+
+  it('leaves the tower built when the reader arrives', () => {
+    // A reader landing on the page must meet a tower, not a diagram caught
+    // mid-explosion. Nothing has moved before the window opens.
+    for (const i of idx) expect(partProgress(i, 0)).toBe(0)
+    for (const i of idx) expect(partProgress(i, OPEN_BEGINS)).toBe(0)
+  })
+
+  it('has every part fully open by the end of the rail', () => {
+    for (const i of idx) expect(partProgress(i, OPEN_ENDS)).toBeCloseTo(1, 6)
+    for (const i of idx) expect(partProgress(i, 1)).toBe(1)
+  })
+
+  it('opens the parts in order, top of the mast first', () => {
+    // The whole point of staging: at any moment mid-reveal, a part higher up
+    // the list is at least as far along as the one below it. All five moving
+    // together read as one object being stretched.
+    for (let t = 0.15; t < 0.9; t += 0.05) {
+      for (let i = 1; i < idx.length; i++) {
+        expect(partProgress(i - 1, t), `t=${t.toFixed(2)} parts ${i - 1}/${i}`)
+          .toBeGreaterThanOrEqual(partProgress(i, t) - 1e-9)
+      }
+    }
+  })
+
+  it('never stalls — something is always moving while the rail opens', () => {
+    // Windows overlap by half. If they did not, the assembly would sit
+    // motionless between parts and the scroll would feel broken.
+    for (let t = OPEN_BEGINS + 0.02; t < OPEN_ENDS - 0.02; t += 0.02) {
+      const moving = idx.some((i) => {
+        const p = partProgress(i, t)
+        return p > 1e-6 && p < 1 - 1e-6
+      })
+      expect(moving, `nothing in motion at t=${t.toFixed(2)}`).toBe(true)
+    }
+  })
+
+  it('is monotone, so scrubbing back and forth never jumps', () => {
+    for (const i of idx) {
+      let prev = -1
+      for (let t = 0; t <= 1.0001; t += 0.02) {
+        const now = partProgress(i, t)
+        expect(now).toBeGreaterThanOrEqual(prev - 1e-9)
+        prev = now
+      }
+    }
+  })
+
+  it('eases rather than starting and stopping dead', () => {
+    // Smoothstepped: the derivative at each window edge is zero, so a part
+    // does not snap into motion. Measured rather than asserted about the
+    // formula — the first and last steps of a window must be much smaller
+    // than the step across its middle.
+    const span = (OPEN_ENDS - OPEN_BEGINS) / (1 + (TOWER_PARTS.length - 1) * 0.5)
+    const d = span / 20
+    const edge = partProgress(0, OPEN_BEGINS + d) - partProgress(0, OPEN_BEGINS)
+    const mid = partProgress(0, OPEN_BEGINS + span / 2 + d)
+      - partProgress(0, OPEN_BEGINS + span / 2)
+    expect(mid).toBeGreaterThan(edge * 3)
   })
 })
 
