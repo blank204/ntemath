@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
 import { PALETTE } from '../../theme/palette'
 import { LABEL } from '../../theme/type'
 import {
-  TOWER_PARTS, MAST_HEIGHT_M, MAST_WIDTH_M, explodedY, latticeRungs,
-  partProgress,
+  TOWER_PARTS, MAST_HEIGHT_M, MAST_WIDTH_M, EXPLODE_SPREAD_M, explodedY,
+  latticeRungs, partProgress,
 } from './towerModel'
 
 /**
@@ -71,7 +75,18 @@ export function TowerCanvas({
 
     let renderer: THREE.WebGLRenderer
     try {
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
+      // Opaque, not alpha. The sky is rendered inside the scene now, so the
+      // pane's backdrop and the object's reflections are the same thing —
+      // which is the arrangement that makes the reference site's object sit
+      // in its picture rather than float on top of one.
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false })
+      renderer.shadowMap.enabled = true
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap
+      // Filmic response and a little exposure headroom: without tone mapping
+      // the emissive lens and beacon clip to flat white the moment bloom
+      // touches them.
+      renderer.toneMapping = THREE.ACESFilmicToneMapping
+      renderer.toneMappingExposure = 1.15
     } catch {
       // No WebGL — a locked-down machine, a headless capture, an old GPU
       // blocklist. The caller falls back to the schematic rather than
@@ -347,9 +362,17 @@ export function TowerCanvas({
       return { part: p, group: g }
     })
 
-    // Ground: a ring and a faint grid, purely for scale. Without it the mast
-    // floats and reads as a diagram rather than as a thirty-metre object.
+    // Ground: a plane that only exists to catch shadow, plus a ring and a
+    // faint grid for scale. Without them the mast floats and reads as a
+    // diagram rather than as a thirty-metre object.
     const groundColor = new THREE.Color(PALETTE.chart.axis)
+    const shadowCatcher = new THREE.Mesh(
+      new THREE.PlaneGeometry(220, 220),
+      track(new THREE.ShadowMaterial({ opacity: 0.5 })),
+    )
+    shadowCatcher.rotation.x = -Math.PI / 2
+    shadowCatcher.receiveShadow = true
+    group.add(shadowCatcher)
     const ring = new THREE.Mesh(
       new THREE.RingGeometry(3.4, 3.6, 48),
       track(new THREE.MeshBasicMaterial({
@@ -359,22 +382,138 @@ export function TowerCanvas({
     ring.rotation.x = -Math.PI / 2
     ring.position.y = 0.02
     group.add(ring)
-    const grid = new THREE.GridHelper(60, 12, groundColor, groundColor)
+    const grid = new THREE.GridHelper(120, 24, groundColor, groundColor)
     ;(grid.material as THREE.Material).transparent = true
-    ;(grid.material as THREE.Material).opacity = 0.14
+    ;(grid.material as THREE.Material).opacity = 0.1
     group.add(grid)
 
-    // Sky above, field below. A hemisphere light is what stops the underside
-    // of every member going flat black on a dark page.
-    scene.add(new THREE.HemisphereLight(
-      new THREE.Color(PALETTE.signal), new THREE.Color(PALETTE.canvas), 1.15))
-    scene.add(new THREE.AmbientLight(new THREE.Color(PALETTE.ink), 0.28))
-    const key = new THREE.DirectionalLight(new THREE.Color(PALETTE.ink), 2.5)
-    key.position.set(14, 26, 12)
+    /**
+     * THE ENVIRONMENT, AND WHY THE TOWER LOOKED LIKE PLASTIC WITHOUT IT.
+     *
+     * The legs are `metalness: 0.72`. A metal surface has essentially no
+     * diffuse term — it renders what it reflects and nothing else. With no
+     * environment in the scene there was nothing to reflect, so every member
+     * fell back to flat shading and the whole mast read as grey plastic. This
+     * is the single biggest reason the object did not look like the reference
+     * site's: every Spline scene ships an HDRI by default, and that is most of
+     * why they look expensive without anyone choosing to make them so.
+     *
+     * Painted rather than downloaded: a night storm over water, as an
+     * equirectangular gradient with a lit cloud break high on the left, where
+     * this page's field is lit from. No HDR to fetch, no licence to record,
+     * about 4 KB of canvas, and it is the same storm the rest of the site is.
+     */
+    const sky = document.createElement('canvas')
+    sky.width = 1024
+    sky.height = 512
+    const g2 = sky.getContext('2d')!
+    const band = g2.createLinearGradient(0, 0, 0, sky.height)
+    band.addColorStop(0.00, '#050b20')   // zenith, nearly black
+    band.addColorStop(0.30, '#0b1738')
+    band.addColorStop(0.47, '#22356e')
+    band.addColorStop(0.52, '#33488c')   // the horizon, the brightest thing
+    band.addColorStop(0.57, '#0d1730')
+    band.addColorStop(1.00, '#03060f')   // the water below
+    g2.fillStyle = band
+    g2.fillRect(0, 0, sky.width, sky.height)
+
+    // Cloud banding. Flat gradients read as a painted wall — a storm has
+    // structure, and a few soft horizontal bars are enough to suggest it once
+    // the background is blurred. Deterministic offsets, not random: the same
+    // sky every load, and no Math.random anywhere in the render path.
+    for (const [cy, h, a] of [
+      [86, 46, 0.30], [140, 30, 0.22], [196, 22, 0.16],
+      [232, 34, 0.20], [268, 18, 0.13],
+    ] as const) {
+      const c = g2.createLinearGradient(0, cy - h, 0, cy + h)
+      c.addColorStop(0, 'rgba(4,8,22,0)')
+      c.addColorStop(0.5, `rgba(4,8,22,${a})`)
+      c.addColorStop(1, 'rgba(4,8,22,0)')
+      g2.fillStyle = c
+      g2.fillRect(0, cy - h, sky.width, h * 2)
+    }
+    // The break in the cloud the storm is lit through. Equirectangular, so x
+    // is azimuth: this sits behind and to the left of the camera's start.
+    const glow = g2.createRadialGradient(300, 150, 10, 300, 150, 260)
+    glow.addColorStop(0, 'rgba(146,178,255,0.95)')
+    glow.addColorStop(0.4, 'rgba(90,124,214,0.40)')
+    glow.addColorStop(1, 'rgba(90,124,214,0)')
+    g2.fillStyle = glow
+    g2.fillRect(0, 0, sky.width, sky.height)
+    // A second, colder break opposite it, so the metal has something to catch
+    // on its far side and the object never has a completely dead edge.
+    const glow2 = g2.createRadialGradient(830, 205, 8, 830, 205, 170)
+    glow2.addColorStop(0, 'rgba(120,150,220,0.55)')
+    glow2.addColorStop(1, 'rgba(120,150,220,0)')
+    g2.fillStyle = glow2
+    g2.fillRect(0, 0, sky.width, sky.height)
+
+    const skyTex = new THREE.CanvasTexture(sky)
+    skyTex.mapping = THREE.EquirectangularReflectionMapping
+    skyTex.colorSpace = THREE.SRGBColorSpace
+
+    const pmrem = new THREE.PMREMGenerator(renderer)
+    const envRT = pmrem.fromEquirectangular(skyTex)
+    scene.environment = envRT.texture
+    // The same sky is the backdrop, not just the reflection. That is what the
+    // reference site does — the room behind its object is also the room the
+    // object is reflecting — and it replaces a CSS gradient that banded.
+    scene.background = envRT.texture
+    // Blurred and dimmed as a BACKDROP while staying bright as a REFLECTION.
+    // These two knobs are separate for exactly this reason: darkening the
+    // environment itself to calm the backdrop would take the highlights off
+    // the steel with it, which is the problem this whole change is fixing.
+    scene.backgroundBlurriness = 0.6
+    scene.backgroundIntensity = 0.42
+    // Distance haze, so the ground grid dissolves into the horizon instead of
+    // ending in a hard square edge.
+    scene.fog = new THREE.Fog(new THREE.Color('#0b1430'), 60, 190)
+
+    // Key, rim and a soft fill on top of the image-based lighting. The
+    // hemisphere light is gone: with a real environment it was double-counting
+    // the sky and washing the shadow side flat.
+    // High and to the side. Lower than this and a 30 m mast throws a shadow
+    // sixty metres long that runs off the frame and reads as a mistake.
+    const key = new THREE.DirectionalLight(new THREE.Color(PALETTE.ink), 2.2)
+    key.position.set(30, 74, 26)
+    key.castShadow = true
+    key.shadow.mapSize.set(1024, 1024)
+    key.shadow.camera.near = 1
+    key.shadow.camera.far = 140
+    const s = 34
+    key.shadow.camera.left = -s
+    key.shadow.camera.right = s
+    key.shadow.camera.top = s * 1.4
+    key.shadow.camera.bottom = -s * 0.3
+    key.shadow.bias = -0.0012
+    key.shadow.normalBias = 0.03
     scene.add(key)
-    const rim = new THREE.DirectionalLight(new THREE.Color(PALETTE.signal), 1.5)
-    rim.position.set(-16, 8, -10)
+    const rim = new THREE.DirectionalLight(new THREE.Color(PALETTE.signal), 1.8)
+    rim.position.set(-24, 12, -18)
     scene.add(rim)
+
+    // Everything steel casts and receives. Done after the whole tree exists
+    // so nothing has to remember to set it at construction.
+    group.traverse((o) => {
+      const m = o as THREE.Mesh
+      if (m.isMesh && m !== shadowCatcher) {
+        m.castShadow = true
+        m.receiveShadow = true
+      }
+    })
+
+    /**
+     * Bloom, so the lens and the obstruction beacon read as light sources
+     * rather than as bright paint. Threshold is high on purpose: only the
+     * emissive parts should glow, and a low threshold turns the whole
+     * galvanised mast into a haze.
+     */
+    const composer = new EffectComposer(renderer)
+    composer.addPass(new RenderPass(scene, camera))
+    const bloom = new UnrealBloomPass(
+      new THREE.Vector2(1, 1), 0.62, 0.75, 0.92)
+    composer.addPass(bloom)
+    composer.addPass(new OutputPass())
 
     let raf = 0
     let current = t
@@ -382,8 +521,12 @@ export function TowerCanvas({
     const size = () => {
       const w = el.clientWidth || 1
       const h = el.clientHeight || 1
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+      const dpr = Math.min(window.devicePixelRatio, 2)
+      renderer.setPixelRatio(dpr)
       renderer.setSize(w, h, false)
+      composer.setPixelRatio(dpr)
+      composer.setSize(w, h)
+      bloom.resolution.set(w, h)
       camera.aspect = w / h
       camera.updateProjectionMatrix()
     }
@@ -411,13 +554,34 @@ export function TowerCanvas({
       if (!calm) spin += 0.0022
       group.rotation.y = spin + opened * 0.6
 
-      // Framed on the mast, pulling back and lifting as the assembly opens so
-      // it never grows out of the panel. The vertical FOV is what binds on a
-      // wide canvas, so the distance is set from the height, not the width.
-      const dist = 31 * (1 + opened * 0.42)
-      camera.position.set(0, MAST_HEIGHT_M * (0.52 + opened * 0.06), dist)
-      camera.lookAt(0, MAST_HEIGHT_M * 0.48, 0)
-      renderer.render(scene, camera)
+      // THE CAMERA IS THE SHOT, and it moves through two of them.
+      //
+      // At rest: low, close, angled up, with the top of the mast cropping out
+      // of frame. A thirty-metre lattice is a slender object — framed whole
+      // and centred it reads as a thin diagram of a tower, which is what the
+      // first attempt at this looked like. Looking up at it from underneath
+      // is what makes it thirty metres.
+      //
+      // Fully open: pulled back and level, because by then the subject is no
+      // longer the mast, it is five subsystems laid out in the air, and the
+      // reader has to be able to see all of them at once.
+      //
+      // Everything between is an interpolation, so the shot travels with the
+      // reveal rather than cutting.
+      const needed = MAST_HEIGHT_M + EXPLODE_SPREAD_M * 1.05 + 10
+      const vFov = (camera.fov * Math.PI) / 180
+      const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect)
+      const wide = Math.max(
+        (needed / 2) / Math.tan(vFov / 2),
+        (needed * 0.42) / Math.tan(hFov / 2),
+      )
+      // Smoothstep the move so it eases rather than tracking the scroll
+      // linearly, which reads as a mechanism rather than as a camera.
+      const e = opened * opened * (3 - 2 * opened)
+      const dist = 24 + (wide - 24) * e
+      camera.position.set(0, 5 + (MAST_HEIGHT_M * 0.5 - 5) * e, dist)
+      camera.lookAt(0, MAST_HEIGHT_M * (0.72 - 0.28 * e), 0)
+      composer.render()
     }
 
     el.appendChild(renderer.domElement)
@@ -442,6 +606,13 @@ export function TowerCanvas({
           if (m.geometry) m.geometry.dispose()
         })
         for (const mat of mats) mat.dispose()
+        // The environment, its PMREM render target and the composer's own
+        // buffers are all GPU allocations React StrictMode would otherwise
+        // leak a second copy of on its double mount.
+        envRT.dispose()
+        pmrem.dispose()
+        skyTex.dispose()
+        composer.dispose()
         renderer.dispose()
         el.removeChild(renderer.domElement)
       },
