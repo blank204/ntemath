@@ -1,5 +1,35 @@
 # Image manifest — candidates, licences, and how to get the rest
 
+---
+
+## 0. WHAT IS ACTUALLY ON THE PAGE (added 2026-08-01)
+
+One image ships, and it is §1's: **MODIS Terra true colour, James Bay,
+2024-08-12**, at the exact demo bounding box. It is the page's full-bleed field,
+graded to a duotone by `tools/img/grade_plate.py`, at
+`web/public/img/james-bay-plate.{jpg,webp}` — 56 KB and 15 KB, against the
+400 KB budget below. Credited on the page in the end-matter section, as data in
+`web/src/rail/attribution.ts`, and held there by `web/tests/attribution.test.ts`:
+an image in `public/img` with no credit fails the suite, and so does a credit
+whose file has gone.
+
+**Picking the date needed a sweep, not a guess.** Eleven frames were fetched
+across five dates and two layers and scored for cloud fraction and swath gaps
+before any of them were opened. Most were unusable: 2025-07-15 is 64% cloud,
+2024-07-20 is 75%, and several `Bands721` frames came back with a hard diagonal
+swath edge and a 20–30% black wedge where the pass missed the box. 2024-08-12
+true colour came back at 0% cloud and no gap, and it is genuinely striking —
+the coast, the lake stipple, and a river sediment plume.
+
+**A trap worth writing down: the cloud score lies on false colour.** The scorer
+looked for pixels that were bright *and desaturated*, which is what cloud looks
+like in true colour. In `Bands721` cloud renders **cyan**, so a frame that is
+almost entirely cloud scored 0.8% and ranked near the top. It was caught only by
+opening it. If you re-run that sweep, either score false-colour frames for cyan
+or do not trust the number — which is the same warning this file already opens
+with, now with a measured example behind it.
+
+
 Searched 2026-08-01. Every source here is keyless and permissively licensed;
 nothing needs an account and nothing needs paying for.
 

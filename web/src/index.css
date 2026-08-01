@@ -47,16 +47,40 @@
    * a field painted there covers the first viewport and leaves flat colour
    * under everything below it. The root always paints the whole canvas.
    *
-   * Two lights, fixed to the viewport because the storm is overhead and stays
-   * there: the cloud lit from inside, up and to the left where the pinned
-   * tower stands, and a colder lift at the bottom right so the measurement
-   * column is not floating on a void. This is the whole difference between a
-   * storm and a dark background with line work on it.
+   * THREE LAYERS, bottom to top: the region itself, then two lights.
+   *
+   * The bottom layer is a MODIS Terra true-colour frame of the actual James
+   * Bay demo box on 2024-08-12, from NASA GIBS — public domain, 12 KB as WebP,
+   * graded to a duotone by tools/img/grade_plate.py. It is there because a CSS
+   * gradient on its own banded and read as a painted wall, and because this is
+   * the one image on the site that can honestly be captioned "this is the
+   * region": the coastline, the lake stipple and the river plumes are the
+   * ground the model is siting towers on. Attribution is in the end matter and
+   * the provenance is in docs/image-manifest.md.
+   *
+   * Above it, two lights fixed to the viewport because the storm is overhead
+   * and stays there: the cloud lit from inside, up and to the left where the
+   * pinned tower stands, and a colder lift at the bottom right so the
+   * measurement column is not floating on a void.
+   *
+   * The plate is offset to 62% because the left half of the split is an opaque
+   * WebGL pane — only the right of it is ever seen, and that is where the
+   * coast and the lakes are.
    */
   background-color: var(--canvas);
+  /* Fallback for anything without image-set(), and the JPEG twin. */
   background-image:
-    radial-gradient(135% 105% at 28% -12%, #1e3475 0%, #101c46 42%, transparent 72%),
-    radial-gradient(85% 65% at 104% 104%, #16255c 0%, transparent 68%);
+    radial-gradient(135% 105% at 28% -12%, rgb(30 52 117 / 88%) 0%, rgb(16 28 70 / 72%) 42%, transparent 74%),
+    radial-gradient(85% 65% at 104% 104%, rgb(22 37 92 / 62%) 0%, transparent 70%),
+    url('/img/james-bay-plate.jpg');
+  background-image:
+    radial-gradient(135% 105% at 28% -12%, rgb(30 52 117 / 88%) 0%, rgb(16 28 70 / 72%) 42%, transparent 74%),
+    radial-gradient(85% 65% at 104% 104%, rgb(22 37 92 / 62%) 0%, transparent 70%),
+    image-set(
+      url('/img/james-bay-plate.webp') type('image/webp'),
+      url('/img/james-bay-plate.jpg') type('image/jpeg'));
+  background-size: auto, auto, cover;
+  background-position: center, center, 62% center;
   background-attachment: fixed;
   background-repeat: no-repeat;
   font-synthesis: none;

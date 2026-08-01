@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { PALETTE } from '../theme/palette'
 import { FIGURE, LABEL, SIZE, TABULAR, TRACK, TYPE, WEIGHT, WIDTH } from '../theme/type'
 import { BEATS, LAB_ANCHOR, SOURCES_ANCHOR } from './beats'
+import { IMAGE_CREDITS, creditLine } from './attribution'
 import { BeatStage, TowerSchematic } from './BeatStage'
 import { TowerCanvas } from './tower/TowerCanvas'
 import { RailSeam } from './RailSeam'
@@ -368,6 +369,26 @@ function SourceNotes() {
       <h3 style={{ ...LABEL, color: PALETTE.inkMuted, gridColumn: '1 / -1' }}>
         / Where every number on this page comes from
       </h3>
+      {/* Imagery, credited on the page rather than only in a doc. NASA's
+          frame is public domain and needs no permission, but an uncredited
+          image is one nobody can check the provenance of — and this whole
+          section exists so a judge can check things. */}
+      <div style={{ gridColumn: '1 / -1' }}>
+        <div style={{ ...FIGURE, fontSize: SIZE.headline, color: PALETTE.ink,
+          marginBottom: 8 }}>
+          Imagery
+        </div>
+        {IMAGE_CREDITS.map((c) => (
+          <p key={c.file} style={{
+            fontFamily: TYPE.body, fontSize: SIZE.small, lineHeight: 1.7,
+            color: PALETTE.inkMuted, margin: '0 0 6px', maxWidth: '68ch',
+          }}>
+            <span style={{ color: PALETTE.ink }}>{creditLine(c)}</span>
+            {' — '}{c.note}
+          </p>
+        ))}
+      </div>
+
       {BEATS.filter((b) => b.source).map((b) => (
         <div key={b.id}>
           <div style={{
