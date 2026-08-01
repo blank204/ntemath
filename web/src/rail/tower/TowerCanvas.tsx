@@ -10,6 +10,7 @@ import {
   TOWER_PARTS, MAST_HEIGHT_M, MAST_WIDTH_M, EXPLODE_SPREAD_M, explodedY,
   latticeRungs, partProgress,
 } from './towerModel'
+import { loadParts } from './loadParts'
 
 /**
  * The tower, in three dimensions, coming apart as the reader scrolls.
@@ -378,13 +379,80 @@ export function TowerCanvas({
       return { part: p, group: g }
     })
 
+    /*
+     * THE DOWNLOADED PARTS. Loaded after the procedural scene is standing, so
+     * the mast is on screen immediately and the models arrive when they
+     * arrive — a slow connection gets a tower, not an empty pane.
+     *
+     * Solar and antenna REPLACE the primitives that stood in for them: those
+     * were a tilted box and a hemisphere, and a real panel and a real antenna
+     * are the parts the bill of materials actually specifies. The spruce and
+     * the transmission tower are the two mounting structures the system is
+     * designed to attach to, and they are here because they are not ours —
+     * the hardware costs $960 a unit precisely because somebody else already
+     * paid for the steel and the trees were always there.
+     */
+    let cancelled = false
+    loadParts([
+      { name: 'solar', material: instrument },
+      { name: 'antenna', material: instrument },
+      { name: 'pine', material: braceSteel },
+      { name: 'pylon', material: legSteel },
+    ]).then((got) => {
+      if (cancelled) return
+
+      // Swap the two stand-ins out of their part groups and the real meshes in.
+      for (const [id, key] of [['solar', 'solar'], ['backhaul', 'antenna']] as const) {
+        const slot = parts.find((p) => p.part.id === id)
+        const model = got[key]
+        if (!slot || !model) continue
+        for (const child of [...slot.group.children]) slot.group.remove(child)
+        slot.group.add(model)
+      }
+
+      // Spruce around the base, at fixed offsets. Deterministic, not random:
+      // the same forest every load, and nothing in the render path may call
+      // Math.random.
+      if (got.pine) {
+        for (const [x, z, sc] of [
+          [-16, -9, 1.0], [13, -14, 0.82], [-9, 12, 0.92],
+          [19, 7, 0.74], [-22, 3, 0.68], [6, 17, 0.88],
+        ] as const) {
+          const t = got.pine.clone(true)
+          t.position.set(x, 0, z)
+          t.scale.multiplyScalar(sc)
+          t.rotation.y = x * 0.7 + z
+          group.add(t)
+        }
+      }
+
+      // One existing transmission tower, set back and to the side: the mast
+      // is one mounting option and this is another, standing in the same
+      // frame so the comparison is visible rather than asserted.
+      if (got.pylon) {
+        got.pylon.position.set(-34, 0, -26)
+        got.pylon.rotation.y = 0.5
+        group.add(got.pylon)
+      }
+    })
+
     // Ground: a plane that only exists to catch shadow, plus a ring and a
     // faint grid for scale. Without them the mast floats and reads as a
     // diagram rather than as a thirty-metre object.
     const groundColor = new THREE.Color(PALETTE.chart.axis)
+    // A real dark ground rather than a THREE.ShadowMaterial. The shadow-only
+    // material renders its unshadowed area as a pale sheet once it goes
+    // through the EffectComposer's float target and the OutputPass, so the
+    // scene sat on a light grey plate under a night sky. A standard material
+    // in a palette colour is one fewer thing depending on how alpha survives
+    // post-processing, and a night forest floor should be visible anyway —
+    // the mast is standing ON something.
     const shadowCatcher = new THREE.Mesh(
-      new THREE.PlaneGeometry(220, 220),
-      track(new THREE.ShadowMaterial({ opacity: 0.5 })),
+      new THREE.PlaneGeometry(320, 320),
+      track(new THREE.MeshStandardMaterial({
+        color: new THREE.Color(PALETTE.canvas),
+        roughness: 0.96, metalness: 0.0,
+      })),
     )
     shadowCatcher.rotation.x = -Math.PI / 2
     shadowCatcher.receiveShadow = true
@@ -630,6 +698,7 @@ export function TowerCanvas({
     api.current = {
       setT: (next) => { current = next },
       dispose: () => {
+        cancelled = true
         cancelAnimationFrame(raf)
         window.removeEventListener('resize', size)
         // Explicit teardown: React StrictMode mounts twice in development,

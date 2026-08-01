@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { PALETTE } from '../theme/palette'
 import { FIGURE, LABEL, SIZE, TABULAR, TRACK, TYPE, WEIGHT, WIDTH } from '../theme/type'
 import { BEATS, LAB_ANCHOR, SOURCES_ANCHOR } from './beats'
-import { IMAGE_CREDITS, creditLine } from './attribution'
+import { IMAGE_CREDITS, MODEL_CREDITS, creditLine } from './attribution'
 import { BeatStage, TowerSchematic } from './BeatStage'
 import { TowerCanvas } from './tower/TowerCanvas'
 import { RailSeam } from './RailSeam'
@@ -397,9 +397,9 @@ function SourceNotes() {
       <div style={{ gridColumn: '1 / -1' }}>
         <div style={{ ...FIGURE, fontSize: SIZE.headline, color: PALETTE.ink,
           marginBottom: 8 }}>
-          Imagery
+          Imagery and models
         </div>
-        {IMAGE_CREDITS.map((c) => (
+        {[...IMAGE_CREDITS, ...MODEL_CREDITS].map((c) => (
           <p key={c.file} style={{
             fontFamily: TYPE.body, fontSize: SIZE.small, lineHeight: 1.7,
             color: PALETTE.inkMuted, margin: '0 0 6px', maxWidth: '68ch',

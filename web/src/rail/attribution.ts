@@ -41,6 +41,80 @@ export const IMAGE_CREDITS: ImageCredit[] = [
   },
 ]
 
-/** The same list as one line per image, for the end matter. */
+/**
+ * Every 3D model the site ships.
+ *
+ * ALL FOUR ARE CC-BY, WHICH IS A STANDING OBLIGATION, NOT A ONE-OFF. Stripping
+ * the textures (tools/model/strip_gltf.py) and relighting the meshes under this
+ * site's own environment does not relicense anything — the geometry is the
+ * licensed work and the credit travels with it.
+ *
+ * WHAT IS AND IS NOT MODELLED FROM SOMEONE ELSE'S WORK. The rule
+ * docs/image-manifest.md sets for photographs — "never captioned as Pyra
+ * hardware" — applies here too, so the split is deliberate:
+ *
+ *   - Off-the-shelf parts get real models, because a solar panel is a solar
+ *     panel and the BOM specifies commodity hardware. Nothing is claimed by
+ *     showing one.
+ *   - Mounting structures get real models, because they are explicitly NOT
+ *     ours: the system attaches to trees, transmission towers and poles that
+ *     are already standing.
+ *   - The sensor head — the fisheye pair and the microphone ring — stays
+ *     procedural, built here. That part is the actual invention, and dressing
+ *     a stranger's CCTV camera up as it is the one move this project has
+ *     always refused.
+ */
+export const MODEL_CREDITS: ImageCredit[] = [
+  {
+    file: 'models/solar.gltf',
+    title: 'Solar Panel',
+    author: 'rivetech (Sketchfab)',
+    licence: 'CC BY 4.0',
+    source: 'https://sketchfab.com/3d-models/solar-panel-83483a66f8974d7e8f2e7bbde518d606',
+    note:
+      'The solar subsystem. Commodity hardware — the BOM calls for a 100 W ' +
+      'panel and this is a 100 W panel. Textures stripped; lit by this ' +
+      'page\'s own environment so it belongs to the same world as everything ' +
+      'around it.',
+  },
+  {
+    file: 'models/antenna.gltf',
+    title: 'CC0 - Antenna',
+    author: 'plaggy (Sketchfab)',
+    licence: 'CC BY 4.0',
+    source: 'https://sketchfab.com/3d-models/cc0-antenna-6bc0ff4565db46ab8f7d229a5d272c12',
+    note:
+      'The satellite uplink. Titled "CC0" by its author but published under ' +
+      'CC Attribution, so it is credited as CC BY — the licence field on the ' +
+      'model is what binds, not the name someone typed.',
+  },
+  {
+    file: 'models/pine.gltf',
+    title: 'Pine Tree — Proto Series',
+    author: 'BitGem (Sketchfab)',
+    licence: 'CC BY 4.0',
+    source: 'https://sketchfab.com/3d-models/pine-tree-proto-series-free-08014e92a59244c992884091218230b8',
+    note:
+      'Boreal forest, and one of the mounting structures the system is ' +
+      'designed to attach to. Not Pyra hardware and never captioned as any: ' +
+      'the trees were already there, which is the point. This is the second ' +
+      'model tried — the first was titled "Pine Tree" and turned out to be a ' +
+      'whole forest scene with its own terrain plane, which is the ' +
+      'image-manifest rule about titles lying, holding just as well in 3D.',
+  },
+  {
+    file: 'models/pylon.gltf',
+    title: 'Transmission tower',
+    author: 'Kaqui (Sketchfab)',
+    licence: 'CC BY 4.0',
+    source: 'https://sketchfab.com/3d-models/transmission-tower-f1bab970dbb541ae87116217470c1cb3',
+    note:
+      'An existing transmission tower — the second mounting option, and the ' +
+      'reason the hardware cost can be $960 a unit rather than the price of ' +
+      'a mast. Somebody else\'s steel, deliberately.',
+  },
+]
+
+/** The same list as one line per asset, for the end matter. */
 export const creditLine = (c: ImageCredit): string =>
   `${c.title} · ${c.author} · ${c.licence}`

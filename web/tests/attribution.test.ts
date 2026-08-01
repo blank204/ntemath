@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import { IMAGE_CREDITS, creditLine } from '../src/rail/attribution'
+import { IMAGE_CREDITS, MODEL_CREDITS, creditLine } from '../src/rail/attribution'
 
 const WEB = join(__dirname, '..')
 const IMG = join(WEB, 'public', 'img')
+const MODELS = join(WEB, 'public', 'models')
 
 /** Every raster the site ships, relative to `public/`. */
 const shipped = (): string[] => {
@@ -12,6 +13,26 @@ const shipped = (): string[] => {
   return readdirSync(IMG)
     .filter((f) => /\.(jpe?g|png|avif|webp)$/i.test(f))
     .map((f) => `img/${f}`)
+}
+
+/**
+ * Every 3D model the site ships. The `.bin` twins are geometry buffers rather
+ * than works in their own right, so the `.gltf` is what carries the credit.
+ */
+const shippedModels = (): string[] => {
+  if (!existsSync(MODELS)) return []
+  return readdirSync(MODELS)
+    .filter((f) => /\.(gltf|glb)$/i.test(f))
+    .map((f) => `models/${f}`)
+}
+
+/** A model plus the buffers it pulls in — what the reader actually downloads. */
+const modelWeightKb = (file: string): number => {
+  const stem = file.replace(/^models\//, '').replace(/\.\w+$/, '')
+  return readdirSync(MODELS)
+    .filter((f) => f === `${stem}.gltf` || f.startsWith(`${stem}.bin`)
+      || f.startsWith(`${stem}_`))
+    .reduce((n, f) => n + statSync(join(MODELS, f)).size, 0) / 1024
 }
 
 describe('image attribution', () => {
@@ -75,6 +96,58 @@ describe('image attribution', () => {
       .join('\n')
     for (const file of shipped()) {
       expect(all, `${file} is never referenced`).toContain(file)
+    }
+  })
+})
+
+describe('3D model attribution', () => {
+  it('credits every model the site ships', () => {
+    // These are CC-BY meshes. Stripping their textures and relighting them
+    // under this site's environment does not relicense anything — the
+    // geometry is the licensed work and the credit travels with it.
+    const credited = new Set(MODEL_CREDITS.map((c) => c.file))
+    for (const file of shippedModels()) {
+      expect(credited.has(file), `${file} ships with no credit`).toBe(true)
+    }
+  })
+
+  it('credits no model that is not there', () => {
+    const there = new Set(shippedModels())
+    for (const c of MODEL_CREDITS) {
+      expect(there.has(c.file), `${c.file} is credited but not shipped`).toBe(true)
+    }
+  })
+
+  it('records a licence, an author and a re-fetchable source for each', () => {
+    for (const c of MODEL_CREDITS) {
+      expect(c.author, c.file).toMatch(/\S/)
+      expect(c.licence, c.file).toMatch(/CC|public domain/i)
+      expect(c.source, c.file).toMatch(/^https?:\/\//)
+      expect(c.note.length, c.file).toBeGreaterThan(30)
+    }
+  })
+
+  it('keeps the whole model set inside a sane download budget', () => {
+    // Geometry only, because the textures were stripped. The Raspberry Pi
+    // board that was also fetched came to 897 KB on its own for a part that
+    // renders about 60 px tall, and was dropped rather than shipped — this
+    // ceiling is what makes that kind of decision explicit rather than a
+    // matter of whoever last added a file.
+    const total = shippedModels().reduce((n, f) => n + modelWeightKb(f), 0)
+    expect(total, `models total ${total.toFixed(0)} KB`).toBeLessThan(500)
+    for (const f of shippedModels()) {
+      expect(modelWeightKb(f), `${f}`).toBeLessThan(220)
+    }
+  })
+
+  it('ships no texture alongside the models', () => {
+    // tools/model/strip_gltf.py removes every image reference. A texture
+    // reappearing in this directory means a model was added by hand without
+    // going through it, and with it comes the mixed-bake look the stripping
+    // exists to prevent.
+    if (!existsSync(MODELS)) return
+    for (const f of readdirSync(MODELS)) {
+      expect(/\.(gltf|bin)$/i.test(f), `${f} is not geometry`).toBe(true)
     }
   })
 })
