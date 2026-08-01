@@ -102,7 +102,11 @@ export function TowerCanvas({
       ?? false
 
     const scene = new THREE.Scene()
-    const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 500)
+    // Near at 1.5, not 0.1. Depth precision is governed by the far/near RATIO,
+    // and 500/0.1 leaves so little resolution out where the scene actually is
+    // that coplanar surfaces at the ground flickered as the camera moved. The
+    // camera never comes closer than ~24 units, so nothing is lost.
+    const camera = new THREE.PerspectiveCamera(38, 1, 1.5, 420)
     const group = new THREE.Group()
     scene.add(group)
 
@@ -394,6 +398,8 @@ export function TowerCanvas({
      */
     let cancelled = false
     loadParts([
+      { name: 'camera', material: housing },
+      { name: 'cabinet', material: housing },
       { name: 'solar', material: instrument },
       { name: 'antenna', material: instrument },
       { name: 'pine', material: braceSteel },
@@ -401,8 +407,11 @@ export function TowerCanvas({
     ]).then((got) => {
       if (cancelled) return
 
-      // Swap the two stand-ins out of their part groups and the real meshes in.
-      for (const [id, key] of [['solar', 'solar'], ['backhaul', 'antenna']] as const) {
+      // Swap the stand-ins out of their part groups and the real meshes in.
+      for (const [id, key] of [
+        ['solar', 'solar'], ['backhaul', 'antenna'],
+        ['camera', 'camera'], ['compute', 'cabinet'],
+      ] as const) {
         const slot = parts.find((p) => p.part.id === id)
         const model = got[key]
         if (!slot || !model) continue
@@ -455,6 +464,7 @@ export function TowerCanvas({
       })),
     )
     shadowCatcher.rotation.x = -Math.PI / 2
+    shadowCatcher.position.y = -0.06
     shadowCatcher.receiveShadow = true
     group.add(shadowCatcher)
     const ring = new THREE.Mesh(
@@ -464,9 +474,12 @@ export function TowerCanvas({
       })),
     )
     ring.rotation.x = -Math.PI / 2
-    ring.position.y = 0.02
+    ring.position.y = 0.14
     group.add(ring)
     const grid = new THREE.GridHelper(120, 24, groundColor, groundColor)
+    // Lifted clear of the ground plane. Both were at exactly y = 0, which is
+    // two surfaces fighting for the same depth value on every pixel.
+    grid.position.y = 0.08
     ;(grid.material as THREE.Material).transparent = true
     ;(grid.material as THREE.Material).opacity = 0.1
     group.add(grid)
@@ -681,9 +694,14 @@ export function TowerCanvas({
       // Smoothstep the move so it eases rather than tracking the scroll
       // linearly, which reads as a mechanism rather than as a camera.
       const e = opened * opened * (3 - 2 * opened)
-      const dist = 24 + (wide - 24) * e
+      // Framed against the procedural lattice, which is slim and even the
+      // whole way up. A licensed telecom tower was tried here and reverted:
+      // see the note in loadParts on why somebody else's cell mast was the
+      // wrong object for this beat.
+      const near = 26
+      const dist = near + (wide - near) * e
       camera.position.set(0, 5 + (MAST_HEIGHT_M * 0.5 - 5) * e, dist)
-      camera.lookAt(0, MAST_HEIGHT_M * (0.72 - 0.28 * e), 0)
+      camera.lookAt(0, MAST_HEIGHT_M * (0.70 - 0.26 * e), 0)
       composer.render()
     }
 

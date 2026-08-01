@@ -14,9 +14,19 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
  * The credits are in `src/rail/attribution.ts` and a test fails the build if a
  * file in `public/models` has no entry — the licence obligation survives the
  * stripping, because the geometry is the licensed work.
+ *
+ * THE MAST IS NOT IN HERE, AND THAT WAS TESTED RATHER THAN ASSUMED. A licensed
+ * telecom tower was fetched, stripped, scaled to 30 m and put on screen. It
+ * measured correctly and still failed: it is a CELLULAR mast, so its head is a
+ * cluster of panel antennas and microwave drums that reads as a wall of
+ * somebody else's hardware, and the five subsystems this beat is actually
+ * about disappeared into it. The procedural lattice has fire-lookout
+ * proportions, was built to come apart on `explodedY`, and costs no download.
+ * Reverted deliberately — the model was worse than the geometry it replaced.
  */
 
-export type PartName = 'solar' | 'antenna' | 'pine' | 'pylon'
+export type PartName =
+  | 'solar' | 'antenna' | 'pine' | 'pylon' | 'camera' | 'cabinet'
 
 /**
  * Everything a part needs to arrive at the right size and the right way up.
@@ -35,6 +45,10 @@ const FIT: Record<PartName, { targetHeight: number; spinY?: number }> = {
   pine: { targetHeight: 15 },
   // An existing transmission tower, taller than our mast by design.
   pylon: { targetHeight: 42 },
+  // The camera head. Scaled to a housing a technician could actually carry.
+  camera: { targetHeight: 1.1 },
+  // The weatherproof cabinet holding the compute and the battery.
+  cabinet: { targetHeight: 1.8 },
 }
 
 const loader = new GLTFLoader()
@@ -60,6 +74,12 @@ export async function loadPart(
   // Measure, then scale to the real dimension. Done from the bounding box
   // rather than trusted from the file: glTF carries no unit convention, and
   // every one of these was authored to a different one.
+  //
+  // updateMatrixWorld FIRST. A freshly loaded glTF has its local transforms
+  // set but nothing has propagated them, so measuring straight away can read
+  // the box off unapplied matrices — which put a 30 m mast in the scene at
+  // several times that and left the camera standing inside it.
+  root.updateMatrixWorld(true)
   const box = new THREE.Box3().setFromObject(root)
   const size = new THREE.Vector3()
   box.getSize(size)
@@ -68,8 +88,12 @@ export async function loadPart(
   root.scale.setScalar(fit.targetHeight / tallest)
 
   // Re-measure after scaling and drop the part so its base sits on y = 0.
+  root.updateMatrixWorld(true)
   const scaled = new THREE.Box3().setFromObject(root)
-  root.position.y -= scaled.min.y
+  // Seated a few centimetres INTO the ground rather than exactly on it. A base
+  // face at precisely y = 0 is coplanar with the ground plane, and two
+  // surfaces at the same depth flicker against each other as the camera moves.
+  root.position.y -= scaled.min.y + 0.04
   if (fit.spinY) root.rotation.y = fit.spinY
 
   const wrap = new THREE.Group()

@@ -113,6 +113,28 @@ export const MODEL_CREDITS: ImageCredit[] = [
       'reason the hardware cost can be $960 a unit rather than the price of ' +
       'a mast. Somebody else\'s steel, deliberately.',
   },
+  {
+    file: 'models/camera.gltf',
+    title: 'Surveillance Cam',
+    author: 'Marcel Schanz (Sketchfab)',
+    licence: 'CC BY 4.0',
+    source: 'https://sketchfab.com/3d-models/surveillance-cam-3d7f98993ee340179af212e465dd8b4e',
+    note:
+      'The camera head. The BOM specifies an off-the-shelf Arducam fisheye in ' +
+      'a weatherproof housing, so a real camera housing is representative ' +
+      'rather than a claim: the invention is the system, not the enclosure.',
+  },
+  {
+    file: 'models/cabinet.gltf',
+    title: 'Old Soviet Electrical Junction Box',
+    author: 'uliana (Sketchfab)',
+    licence: 'CC BY 4.0',
+    source: 'https://sketchfab.com/3d-models/old-soviet-electrical-junction-box-fe37bff7b3fa45a7960b7defa30b3f3e',
+    note:
+      'The weatherproof cabinet carrying the compute and the battery. An ' +
+      'outdoor junction box is exactly the class of enclosure this needs, and ' +
+      'nothing about it is particular to Pyra.',
+  },
 ]
 
 /** The same list as one line per asset, for the end matter. */

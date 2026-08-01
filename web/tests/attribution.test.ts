@@ -133,10 +133,16 @@ describe('3D model attribution', () => {
     // renders about 60 px tall, and was dropped rather than shipped — this
     // ceiling is what makes that kind of decision explicit rather than a
     // matter of whoever last added a file.
+    // Raised from 500 KB once the mast itself became a licensed model rather
+    // than procedural geometry: the mast is the hero object and 785 KB buys
+    // real lattice proportions that the 289 KB alternative did not have (it
+    // was 48:1 slender, which at 30 m leaves a 0.6 m tower carrying a solar
+    // panel). These are fetched after first paint and block nothing, which is
+    // what makes the trade affordable — it is NOT licence to keep adding.
     const total = shippedModels().reduce((n, f) => n + modelWeightKb(f), 0)
-    expect(total, `models total ${total.toFixed(0)} KB`).toBeLessThan(500)
+    expect(total, `models total ${total.toFixed(0)} KB`).toBeLessThan(1500)
     for (const f of shippedModels()) {
-      expect(modelWeightKb(f), `${f}`).toBeLessThan(220)
+      expect(modelWeightKb(f), `${f}`).toBeLessThan(820)
     }
   })
 
