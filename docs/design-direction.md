@@ -159,12 +159,20 @@ Updated 2026-08-01, after the first pass at the rebuild.
       panels. **The panel copy is still long** — see §6.
 - [x] Palette and type tests re-run (425 pass, `tsc -b` and `npm run build`
       clean), and walked in a browser at ~1170 and ~1460 CSS px.
-- [ ] **Not done: walked at 390 wide.** The browser window would not leave a
-      maximised 2048px in this session. The narrow branch is covered by a render
-      test and one clear defect was fixed blind (the 116% cropped headline is
-      pointless with no seam to cut it, so it drops to 92% when stacked), but
-      nobody has looked at it. This repo's own rule is that scroll and layout
-      bugs are only found by looking, so treat mobile as unverified.
+- [x] **Walked at 390 wide.** The browser window would not leave a maximised
+      2048 px, so the page was loaded in a 390 px iframe instead — media
+      queries evaluate against the frame, so it is a real narrow viewport
+      rather than a scaled screenshot. Worth remembering as a technique the
+      next time a window will not resize.
+
+      Two real bugs, both found only by looking, neither visible to the suite:
+      the fixed wordmark had no backdrop, so beat copy scrolled straight
+      through it (the same overlap complaint in its last form — now a short
+      gradient scrim, which helps on desktop too); and stacked, the beat column
+      painted *over* the sticky tower because the two share one grid column and
+      nothing gave them a stacking order. The pane is now above the column with
+      its own backdrop, at 40vh rather than 52vh, and stacked sections start
+      below it instead of centring behind it.
 
 ## 6. What this pass deliberately did not do
 
@@ -172,9 +180,15 @@ Updated 2026-08-01, after the first pass at the rebuild.
   is one storm blue for all seven beats. The ramp is a good idea and it tracks
   something true, but it wants to be judged against a working split rather than
   designed at the same time as one.
-- **The Lab's panel copy.** It still reads as documentation, which is the same
-  problem the Rail had. It needs the same treatment: figures promoted, prose cut,
-  sourcing moved. It is the largest remaining piece of the rejection.
-- **A photographic layer.** `image-manifest.md` §1 has the NASA GIBS frame of
-  the actual demo box, public domain and free. Nothing from the manifest is on
-  the page yet, and every candidate in it still needs eyeballing before use.
+Both of the other two are now done:
+
+- **The Lab's panel copy** got the same treatment the Rail did. Control names
+  are in the label voice with their live values promoted to tabular readouts on
+  the right, and the three paragraphs that used to stack between the sliders
+  (the gate statistics, the weight explanation, the budget explanation) are
+  behind `Why ▸` disclosures — every word still on the page, one click away,
+  no longer competing with the map. A bug surfaced doing it: `Note` painted its
+  captions in `PALETTE.control`, because the rename swapped a grey token for
+  the uniform-grid *series* colour and nothing caught a chart magenta being
+  used as body text.
+- **A photographic layer** ships: §0 of `image-manifest.md`.

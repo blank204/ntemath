@@ -245,28 +245,44 @@ export function TowerCanvas({
       const g = new THREE.Group()
       if (p.id === 'mics') {
         // Three booms at 120°, which is the array that gives the bearing.
+        //
+        // Thicker and shorter than the first attempt, with the windscreens
+        // seated directly on the boom ends rather than raised on little
+        // stalks. Thin rods with small balls on stalks read as an insect,
+        // which is what this looked like: a real array is a chunky thing,
+        // because a microphone that has to survive a boreal winter lives
+        // inside a foam windscreen the size of a fist.
         const hub = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.34, 0.4, 0.7, 12), housing)
+          new THREE.CylinderGeometry(0.42, 0.5, 0.9, 16), housing)
         g.add(hub)
+        const collar = new THREE.Mesh(
+          new THREE.TorusGeometry(0.5, 0.07, 8, 20), instrument)
+        collar.rotation.x = Math.PI / 2
+        g.add(collar)
+        const reach = p.radius * 0.78
         for (let i = 0; i < 3; i++) {
           const a = (i * 2 * Math.PI) / 3
           const boom = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.055, 0.045, p.radius * 2, 8), instrument)
+            new THREE.CylinderGeometry(0.1, 0.085, reach, 10), housing)
           boom.rotation.z = Math.PI / 2
-          boom.rotation.y = a
-          boom.position.set(Math.cos(a) * p.radius * 0.5, 0,
-            Math.sin(a) * p.radius * 0.5)
+          boom.rotation.y = -a
+          boom.position.set(Math.cos(a) * reach * 0.5, 0,
+            Math.sin(a) * reach * 0.5)
           g.add(boom)
-          // Windshield, on a short standoff — a microphone on a boom in a
-          // boreal winter is a microphone inside a foam ball.
-          const stem = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.04, 0.04, 0.26, 6), housing)
-          stem.position.set(Math.cos(a) * p.radius, 0.13, Math.sin(a) * p.radius)
-          g.add(stem)
+          // The windscreen: a fist-sized foam ball, slightly squashed, with
+          // the capsule collar visible where it meets the boom.
           const ball = new THREE.Mesh(
-            new THREE.SphereGeometry(0.2, 14, 12), instrument)
-          ball.position.set(Math.cos(a) * p.radius, 0.3, Math.sin(a) * p.radius)
+            new THREE.SphereGeometry(0.36, 18, 14), instrument)
+          ball.scale.set(1, 0.88, 1)
+          ball.position.set(Math.cos(a) * reach, 0, Math.sin(a) * reach)
           g.add(ball)
+          const capsule = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.13, 0.13, 0.18, 10), housing)
+          capsule.rotation.z = Math.PI / 2
+          capsule.rotation.y = -a
+          capsule.position.set(Math.cos(a) * (reach - 0.34), 0,
+            Math.sin(a) * (reach - 0.34))
+          g.add(capsule)
         }
       } else if (p.id === 'solar') {
         // A tilted array on a frame, with mullions. A flat plate reads as a
@@ -418,11 +434,18 @@ export function TowerCanvas({
     g2.fillRect(0, 0, sky.width, sky.height)
 
     // Cloud banding. Flat gradients read as a painted wall — a storm has
-    // structure, and a few soft horizontal bars are enough to suggest it once
-    // the background is blurred. Deterministic offsets, not random: the same
-    // sky every load, and no Math.random anywhere in the render path.
+    // structure, and soft horizontal bars are enough to suggest it once the
+    // background is blurred. Deterministic offsets, not random: the same sky
+    // every load, and no Math.random anywhere in the render path.
+    //
+    // Weighted towards the TOP of the frame. At rest the camera is low and
+    // angled up, so most of what a reader sees is the zenith — and with only
+    // horizon-height bands that upper half was the plainest part of the shot,
+    // which is the "sky is a bit flat" note. Overhead cloud is also what a
+    // storm actually looks like from underneath it.
     for (const [cy, h, a] of [
-      [86, 46, 0.30], [140, 30, 0.22], [196, 22, 0.16],
+      [14, 34, 0.34], [46, 40, 0.30], [86, 46, 0.30], [118, 26, 0.24],
+      [140, 30, 0.22], [168, 24, 0.20], [196, 22, 0.16],
       [232, 34, 0.20], [268, 18, 0.13],
     ] as const) {
       const c = g2.createLinearGradient(0, cy - h, 0, cy + h)
@@ -431,6 +454,18 @@ export function TowerCanvas({
       c.addColorStop(1, 'rgba(4,8,22,0)')
       g2.fillStyle = c
       g2.fillRect(0, cy - h, sky.width, h * 2)
+    }
+    // Two soft lit patches high up, where the cloud is thinner. Without them
+    // the overhead half is one tone no matter how many dark bars go over it,
+    // and the metal has nothing to catch when the camera is looking up.
+    for (const [x, y, r, a] of [
+      [640, 60, 210, 0.30], [180, 96, 150, 0.20],
+    ] as const) {
+      const c = g2.createRadialGradient(x, y, 4, x, y, r)
+      c.addColorStop(0, `rgba(122,156,232,${a})`)
+      c.addColorStop(1, 'rgba(122,156,232,0)')
+      g2.fillStyle = c
+      g2.fillRect(x - r, y - r, r * 2, r * 2)
     }
     // The break in the cloud the storm is lit through. Equirectangular, so x
     // is azimuth: this sits behind and to the left of the camera's start.

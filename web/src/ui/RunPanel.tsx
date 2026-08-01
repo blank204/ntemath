@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useModelStore } from '../state/useModelStore'
 import { PALETTE } from '../theme/palette'
-import { LABEL, SIZE, TYPE, WIDTH } from '../theme/type'
+import { LABEL, SIZE, TABULAR, TYPE, WIDTH } from '../theme/type'
 import type { RegionMeta } from '../lib/loadRegion'
 import { loadManifest } from '../lib/loadRegion'
 import { strideKm } from '../lib/pipeline'
@@ -21,9 +21,91 @@ function Note({ label, body }: { label: string; body: string }) {
       <div style={{ ...LABEL, color: PALETTE.signal }}>
         {label.toUpperCase()}
       </div>
-      <div style={{ color: PALETTE.control, fontSize: 11, lineHeight: 1.5 }}>
+      {/* `inkMuted`, not `control`. This read `PALETTE.baselineGray` — a grey —
+          until the storm-blue rename swapped that token for `control`, which
+          is the uniform-grid SERIES colour. Provenance captions were being
+          painted in a chart magenta, and a data-series colour used as body
+          text is exactly what the palette's naming rules exist to stop. */}
+      <div style={{
+        color: PALETTE.inkMuted, fontSize: 11, lineHeight: 1.5,
+      }}>
         {body}
       </div>
+    </div>
+  )
+}
+
+/**
+ * A control's name and its current value.
+ *
+ * The name goes in the label voice the whole site uses; the value is promoted
+ * out of the sentence into a tabular readout, because the value is the thing
+ * being adjusted and it was previously buried mid-line in prose. Tabular so
+ * it does not jitter while a slider is being dragged.
+ */
+function Field({ name, value, dim = false, children }: {
+  name: string
+  value?: string
+  dim?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <label style={{ display: 'block', marginTop: 16, opacity: dim ? 0.45 : 1 }}>
+      <span style={{
+        display: 'flex', justifyContent: 'space-between',
+        alignItems: 'baseline', gap: 8, marginBottom: 5,
+      }}>
+        <span style={{ ...LABEL, color: PALETTE.inkMuted }}>{name}</span>
+        {value !== undefined && (
+          <span style={{
+            ...TABULAR, fontFamily: TYPE.mono, fontStretch: WIDTH.labelNarrow,
+            fontSize: SIZE.small, color: PALETTE.ink,
+          }}>
+            {value}
+          </span>
+        )}
+      </span>
+      {children}
+    </label>
+  )
+}
+
+/**
+ * A sentence the panel owes the reader but should not lead with.
+ *
+ * The Lab had the same problem the Rail did — the reason the whole visual
+ * rebuild started — which is that it explained itself in paragraphs stacked
+ * between the controls, so the controls were hard to find and the paragraphs
+ * went unread. This keeps every word, on the page, one click away, and stops
+ * it competing with the map behind it.
+ *
+ * Not a `<details>`: the summary marker cannot be styled consistently across
+ * browsers and this one has to sit in the label voice like everything else.
+ */
+function Why({ children }: { children: React.ReactNode }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{ marginTop: 8 }}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        style={{
+          ...LABEL, padding: 0, background: 'transparent', border: 0,
+          color: PALETTE.signal, cursor: 'pointer',
+        }}
+      >
+        {open ? 'Why ▾' : 'Why ▸'}
+      </button>
+      {open && (
+        <div style={{
+          color: PALETTE.inkMuted, fontSize: 11, lineHeight: 1.6,
+          marginTop: 6, paddingLeft: 10,
+          borderLeft: `1px solid ${PALETTE.surfaceRaised}`,
+        }}>
+          {children}
+        </div>
+      )}
     </div>
   )
 }
@@ -126,8 +208,10 @@ function SpacingOverride({ value, derived, onChange }: {
   }
 
   return (
-    <div style={{ marginTop: 12 }}>
-      <div>Spacing bounds (km)</div>
+    <div style={{ marginTop: 16 }}>
+      <div style={{ ...LABEL, color: PALETTE.inkMuted, marginBottom: 5 }}>
+        Spacing bounds (km)
+      </div>
       <div style={{ display: 'flex', gap: '4%' }}>
         <input
           type="number" step={0.1} min={0} value={min} style={box}
@@ -261,8 +345,7 @@ export function RunPanel() {
         PYRA
       </div>
 
-      <label style={{ display: 'block', marginTop: 12 }}>
-        Region
+      <Field name="Region">
         <select
           value={regionName}
           onChange={(e) => setRegionName(e.target.value)}
@@ -278,7 +361,7 @@ export function RunPanel() {
             </option>
           ))}
         </select>
-      </label>
+      </Field>
       {selected && (
         <p style={{ color: PALETTE.chart.inkMuted, marginTop: 6, fontSize: 11 }}>
           {selected.regime} · ignition: {selected.ignition}
@@ -293,13 +376,10 @@ export function RunPanel() {
         </p>
       )}
       {region?.meta.lightningGate && (
-        <p style={{ color: PALETTE.chart.inkMuted, marginTop: 6, fontSize: 11, lineHeight: 1.5 }}>
-          {gateSentence(region.meta.lightningGate)}
-        </p>
+        <Why>{gateSentence(region.meta.lightningGate)}</Why>
       )}
 
-      <label style={{ display: 'block', marginTop: 12 }}>
-        Fire-weather weight: {params.wWeather.toFixed(2)}
+      <Field name="Fire-weather weight" value={params.wWeather.toFixed(2)}>
         <input
           type="range" min={0} max={1} step={0.01} value={params.wWeather}
           onChange={(e) => setWeights({
@@ -307,12 +387,13 @@ export function RunPanel() {
           })}
           style={control}
         />
-      </label>
+      </Field>
 
-      <label style={{ display: 'block', marginTop: 12 }}>
-        {region?.meta.layer === 'fire-activity'
+      <Field
+        name={region?.meta.layer === 'fire-activity'
           ? 'Observed-activity weight' : 'Strike-density weight'}
-        : {params.wActivity.toFixed(2)}
+        value={params.wActivity.toFixed(2)}
+      >
         <input
           // Capped at what the weather weight leaves, so the base weight the
           // readout below shows can never go negative.
@@ -322,18 +403,17 @@ export function RunPanel() {
           })}
           style={control}
         />
-      </label>
+      </Field>
 
-      <div style={{ marginTop: 8, color: PALETTE.chart.inkMuted, fontSize: 11, lineHeight: 1.5 }}>
+      <Why>
         {weightSentence({
           wWeather: params.wWeather, wActivity: params.wActivity,
           wBase: params.wBase, fwiNorm: region?.meta.fwiNorm ?? 0,
           layer: region?.meta.layer ?? 'lightning',
         })}
-      </div>
+      </Why>
 
-      <label style={{ display: 'block', marginTop: 12 }}>
-        Confirmation radius: {params.detectKm.toFixed(1)} km
+      <Field name="Confirmation radius" value={`${params.detectKm.toFixed(1)} km`}>
         <input
           // Up to 20 km, where audible thunder gives out. The camera sees
           // the flash much further; what this slider bounds is the range at
@@ -344,13 +424,13 @@ export function RunPanel() {
           onChange={(e) => setParam('detectKm', Number(e.target.value))}
           style={control}
         />
-      </label>
+      </Field>
 
-      <label style={{
-        display: 'block', marginTop: 12,
-        opacity: params.budgetMode === 'saturation' ? 1 : 0.45,
-      }}>
-        Coverage target: {(params.target * 100).toFixed(0)}%
+      <Field
+        name="Coverage target"
+        value={`${(params.target * 100).toFixed(0)}%`}
+        dim={params.budgetMode !== 'saturation'}
+      >
         <input
           type="range" min={0.5} max={0.99} step={0.01} value={params.target}
           // Only saturation honours the target. The budgeted regimes set an
@@ -361,10 +441,9 @@ export function RunPanel() {
           onChange={(e) => setParam('target', Number(e.target.value))}
           style={control}
         />
-      </label>
+      </Field>
 
-      <label style={{ display: 'block', marginTop: 12 }}>
-        Budget mode
+      <Field name="Budget mode">
         <select
           value={params.budgetMode}
           onChange={(e) => setParam('budgetMode', e.target.value as typeof params.budgetMode)}
@@ -374,20 +453,19 @@ export function RunPanel() {
           <option value="auto">auto — the library default</option>
           <option value="fixed">fixed — a node count I choose</option>
         </select>
-      </label>
+      </Field>
 
       {params.budgetMode === 'fixed' && (
-        <label style={{ display: 'block', marginTop: 12 }}>
-          Fixed nodes: {params.fixedNodes}
+        <Field name="Fixed nodes" value={String(params.fixedNodes)}>
           <input
             type="range" min={1} max={2000} step={1} value={params.fixedNodes}
             onChange={(e) => setParam('fixedNodes', Math.round(Number(e.target.value)))}
             style={control}
           />
-        </label>
+        </Field>
       )}
 
-      <div style={{ marginTop: 8, color: PALETTE.chart.inkMuted, fontSize: 11, lineHeight: 1.5 }}>
+      <Why>
         {budgetSentence({
           mode: params.budgetMode,
           maxNodes: result?.budget.maxNodes ?? (
@@ -395,7 +473,7 @@ export function RunPanel() {
           ),
           nodeCount: result?.nodeCount ?? 0,
         })}
-      </div>
+      </Why>
 
       <SpacingOverride
         value={params.spacingOverride}

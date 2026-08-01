@@ -119,8 +119,17 @@ export function Rail() {
         style={{
           position: 'fixed', top: 0, left: 0, right: 0, zIndex: 10,
           display: 'flex', justifyContent: 'space-between',
-          alignItems: 'flex-start', padding: '18px 20px',
+          alignItems: 'flex-start', padding: '18px 20px 26px',
           pointerEvents: 'none',
+          // A scrim, not a bar. The chrome is fixed over everything, and
+          // stacked on a phone the beat copy scrolls straight under it — a
+          // headline reading through the wordmark was the overlap complaint
+          // in its last remaining form. A hard bar would cut the field in
+          // two; a short fade keeps the page full-bleed and still gives the
+          // wordmark something to sit on.
+          background:
+            `linear-gradient(to bottom, ${PALETTE.canvas} 0%, `
+            + `rgb(7 14 36 / 55%) 45%, transparent 100%)`,
         }}
       >
         <span
@@ -157,8 +166,14 @@ export function Rail() {
         <div
           style={{
             position: 'sticky', top: 0,
-            height: isSplit ? '100vh' : '52vh',
+            height: isSplit ? '100vh' : '40vh',
             overflow: 'hidden',
+            // Stacked on a phone the pane and the column share one column of
+            // the grid, and without a stacking order the beat copy painted
+            // straight over the tower. Above the column, so the text scrolls
+            // under the pinned object the way it does on the split.
+            zIndex: isSplit ? undefined : 2,
+            background: isSplit ? undefined : PALETTE.canvas,
           }}
         >
           {/* The stage, at full frame height and cropped top and bottom. 120%
@@ -232,10 +247,13 @@ export function Rail() {
               ref={(el) => { refs.current[i] = el }}
               aria-current={i === active ? 'step' : undefined}
               style={{
-                minHeight: isSplit ? '100vh' : '62vh',
+                minHeight: isSplit ? '100vh' : '92vh',
                 display: 'flex', flexDirection: 'column',
-                justifyContent: 'center',
-                padding: isSplit ? '0 5vw 0 4vw' : '0 6vw',
+                // Centred inside the pane on the split; below the pinned
+                // tower when stacked, because centring in the section would
+                // centre it behind the 40vh the tower is holding.
+                justifyContent: isSplit ? 'center' : 'flex-start',
+                padding: isSplit ? '0 5vw 0 4vw' : '46vh 7vw 8vh',
                 opacity: i === active ? 1 : 0.28,
                 transition: 'opacity 300ms ease',
               }}
@@ -361,7 +379,10 @@ function SourceNotes() {
       aria-label="Sources for every figure on this page"
       style={{
         borderTop: `1px solid ${PALETTE.surfaceRaised}`,
-        padding: '9vh 6vw', display: 'grid',
+        // Top padding clears the fixed wordmark, which is chrome and sits
+        // over everything: at 9vh the first row's figure landed underneath
+        // it, which is the same overlap the pinned headline used to cause.
+        padding: 'clamp(96px, 13vh, 170px) 6vw 9vh', display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
         gap: '34px 48px', alignItems: 'start',
       }}
