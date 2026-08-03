@@ -13,7 +13,7 @@
  * signal on a border is how the old page stopped being able to say anything
  * with orange at all.
  *
- * `signal` carries the network, the Pyra series and every interactive accent;
+ * `signal` carries the network, the LightningWatch series and every interactive accent;
  * `control` carries the uniform-grid comparison.
  */
 export const PALETTE = {
@@ -32,7 +32,7 @@ export const PALETTE = {
   /** RESERVED: fire, heat, alert. Nothing else, and never as line work. */
   ember: '#FF6A2B',
 
-  /** Network links, telemetry, nodes, the Pyra series, interactive accents. */
+  /** Network links, telemetry, nodes, the LightningWatch series, interactive accents. */
   signal: '#2696E4',
 
   /** The uniform-grid comparison series. */

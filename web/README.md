@@ -1,6 +1,6 @@
-# Pyra — web
+# LightningWatch — web
 
-The browser side of Pyra: an interactive map that runs the wildfire-sensor
+The browser side of LightningWatch: an interactive map that runs the wildfire-sensor
 siting model **in the browser**, on real baked data, and reproduces the Python
 reference (`place.py`) bit for bit.
 
@@ -91,5 +91,5 @@ python -m tools.bake.export_fixtures     # writes web/tests/fixtures/*.json
 ## Colour rule
 
 Green and black are surfaces. Saturated orange is reserved for fire, heat and
-alert states. Nodes and Pyra data series are mesh teal; comparison baselines
+alert states. Nodes and LightningWatch data series are mesh teal; comparison baselines
 are grey. Import from `src/theme/palette.ts`.

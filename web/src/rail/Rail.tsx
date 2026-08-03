@@ -132,14 +132,20 @@ export function Rail() {
             + `rgb(7 14 36 / 55%) 45%, transparent 100%)`,
         }}
       >
+        {/* Fourteen characters of wide display type is a different object from
+            the four this used to be: at headline size it runs into the
+            skip link on a phone. The split keeps the full size; stacked, the
+            wordmark steps down a stop rather than wrapping or colliding. */}
         <span
           style={{
             fontFamily: TYPE.display, fontStretch: WIDTH.displayWide,
-            fontWeight: WEIGHT.semibold, fontSize: SIZE.headline,
-            letterSpacing: '0.02em', color: PALETTE.ink, lineHeight: 1,
+            fontWeight: WEIGHT.semibold,
+            fontSize: isSplit ? SIZE.headline : SIZE.body,
+            letterSpacing: '0.01em', color: PALETTE.ink, lineHeight: 1,
+            whiteSpace: 'nowrap',
           }}
         >
-          PYRA
+          LIGHTNINGWATCH
         </span>
         {/* Skip-to-Lab, first thing in the tab order after the wordmark: a
             judge with four minutes should not have to scroll seven beats to

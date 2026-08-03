@@ -136,7 +136,7 @@ export function ignitionCaveat(r: RegionEntry): string | null {
  * The benchmark caption, including which arm is ahead at the budget on screen.
  *
  * It is allowed to say the uniform grid wins, and on Los Padres at saturation
- * it does. A caption that always announced a Pyra win would be a caption that
+ * it does. A caption that always announced a LightningWatch win would be a caption that
  * had stopped reading its own data.
  */
 export function benchmarkSentence(r: BenchmarkResult): string {

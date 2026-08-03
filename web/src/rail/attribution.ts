@@ -50,8 +50,8 @@ export const IMAGE_CREDITS: ImageCredit[] = [
  * licensed work and the credit travels with it.
  *
  * WHAT IS AND IS NOT MODELLED FROM SOMEONE ELSE'S WORK. The rule
- * docs/image-manifest.md sets for photographs — "never captioned as Pyra
- * hardware" — applies here too, so the split is deliberate:
+ * docs/image-manifest.md sets for photographs — "never captioned as
+ * LightningWatch hardware" — applies here too, so the split is deliberate:
  *
  *   - Off-the-shelf parts get real models, because a solar panel is a solar
  *     panel and the BOM specifies commodity hardware. Nothing is claimed by
@@ -96,7 +96,8 @@ export const MODEL_CREDITS: ImageCredit[] = [
     source: 'https://sketchfab.com/3d-models/pine-tree-proto-series-free-08014e92a59244c992884091218230b8',
     note:
       'Boreal forest, and one of the mounting structures the system is ' +
-      'designed to attach to. Not Pyra hardware and never captioned as any: ' +
+      'designed to attach to. Not LightningWatch hardware and never captioned '
+      + 'as any: ' +
       'the trees were already there, which is the point. This is the second ' +
       'model tried — the first was titled "Pine Tree" and turned out to be a ' +
       'whole forest scene with its own terrain plane, which is the ' +
@@ -133,7 +134,7 @@ export const MODEL_CREDITS: ImageCredit[] = [
     note:
       'The weatherproof cabinet carrying the compute and the battery. An ' +
       'outdoor junction box is exactly the class of enclosure this needs, and ' +
-      'nothing about it is particular to Pyra.',
+      'nothing about it is particular to LightningWatch.',
   },
 ]
 

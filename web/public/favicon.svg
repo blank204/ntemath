@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Pyra">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="LightningWatch">
   <!-- Palette: canvas #070E24, signal #2696E4, ember #FF6A2B. Every hex here
        must exist in src/theme/palette.ts and tests/palette.test.ts checks it;
        this file sat on the retired green-and-teal world for a whole palette

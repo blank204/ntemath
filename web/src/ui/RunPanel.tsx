@@ -339,10 +339,13 @@ export function RunPanel() {
       {/* Ink, not ember. The wordmark used to be orange, and a wordmark is
           chrome — spending the fire signal on it is what left the old page
           unable to mean anything by orange when it actually meant fire. */}
-      <div style={{ ...LABEL, fontSize: SIZE.headline, letterSpacing: '0.06em',
+      {/* Tracking dropped from 0.06em to 0.01em with the longer name: at
+          headline size on a 300 px panel the old letter-spacing pushed
+          fourteen characters past the padding. */}
+      <div style={{ ...LABEL, fontSize: SIZE.headline, letterSpacing: '0.01em',
         fontFamily: TYPE.display, fontStretch: WIDTH.displayWide,
         color: PALETTE.ink }}>
-        PYRA
+        LIGHTNINGWATCH
       </div>
 
       <Field name="Region">
